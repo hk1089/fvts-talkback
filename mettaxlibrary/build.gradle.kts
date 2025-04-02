@@ -1,10 +1,12 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    id("maven-publish")
 }
 
 android {
     namespace = "com.hk1089.mettax"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 24
@@ -22,6 +24,7 @@ android {
             jniLibs.srcDirs(setOf("src/main/jniLibs"))
         }
     }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -35,8 +38,24 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
+
+afterEvaluate {
+    extensions.configure<PublishingExtension>("publishing") {
+        publications {
+            create<MavenPublication>("release") {
+                from(components["release"])
+                groupId = "com.hk1089"
+                artifactId = "fvts-talkback"
+                version = "1.0.1"
+            }
+        }
+    }
+}
+
 
 dependencies {
 
