@@ -65,10 +65,10 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
-    implementation(libs.okhttp)
+   // implementation(libs.okhttp)
     // implementation("com.alibaba:fastjson:1.1.72.android")
     //implementation(libs.fastjson)
-    implementation("com.alibaba:fastjson:1.2.83") { exclude(group = "com.alibaba", module = "fastjson-support-jaxrs") }
+   // implementation("com.alibaba:fastjson:1.2.83") { exclude(group = "com.alibaba", module = "fastjson-support-jaxrs") }
     // For Permission.
     implementation(libs.permissionx)
 
