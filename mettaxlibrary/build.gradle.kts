@@ -50,7 +50,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.hk1089"
                 artifactId = "fvts-talkback"
-                version = "1.0.3"
+                version = "1.0.4"
             }
         }
     }
@@ -67,8 +67,8 @@ dependencies {
 
     implementation(libs.okhttp)
     // implementation("com.alibaba:fastjson:1.1.72.android")
-    implementation(libs.fastjson)
-
+    //implementation(libs.fastjson)
+    implementation("com.alibaba:fastjson:1.2.83") { exclude(group = "com.alibaba", module = "fastjson-support-jaxrs") }
     // For Permission.
     implementation(libs.permissionx)
 
