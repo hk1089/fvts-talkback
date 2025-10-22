@@ -27,7 +27,7 @@ class VideoPlayerExampleActivity : AppCompatActivity() {
         
         // Set up the UI
         setupUI()
-        
+
         // Set video player listener
         mVideoPlayer.setVideoPlayerListener(object : VideoPlayer.VideoPlayerListener {
             override fun onVideoClick(view: com.hk1089.mettax.video.VideoView, index: Int) {
@@ -97,29 +97,7 @@ class VideoPlayerExampleActivity : AppCompatActivity() {
         // Add video player layout
         mainLayout.addView(mVideoPlayer.mainLayout)
         
-        // Create control buttons
-        val buttonLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-        
-        mStartButton = Button(this).apply {
-            text = "Start Video"
-            setOnClickListener {
-                mVideoPlayer.startVideo()
-            }
-        }
-        buttonLayout.addView(mStartButton)
-        
-        mStopButton = Button(this).apply {
-            text = "Stop Video"
-            setOnClickListener {
-                mVideoPlayer.stopVideo()
-            }
-        }
-        buttonLayout.addView(mStopButton)
-        
-        mainLayout.addView(buttonLayout)
-        
+
         setContentView(mainLayout)
     }
     

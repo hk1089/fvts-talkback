@@ -50,7 +50,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.hk1089"
                 artifactId = "fvts-talkback"
-                version = "1.0.6"
+                version = "1.0.7"
             }
         }
     }
