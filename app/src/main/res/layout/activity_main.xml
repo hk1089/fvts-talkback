@@ -9,7 +9,7 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <com.google.android.material.button.MaterialButton
+    <Button
         android:id="@+id/permission"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -21,7 +21,7 @@
 
 
 
-    <com.google.android.material.button.MaterialButton
+    <Button
         android:id="@+id/startCall"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -33,7 +33,7 @@
         app:layout_constraintBottom_toBottomOf="parent"/>
 
 
-    <com.google.android.material.button.MaterialButton
+    <Button
         android:id="@+id/muteMic"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -46,7 +46,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
 
-    <com.google.android.material.button.MaterialButton
+    <Button
         android:id="@+id/muteSpeaker"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -70,5 +70,16 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/openVideoPlayer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Open Video Player"
+        android:backgroundTint="@android:color/holo_blue_bright"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textView"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

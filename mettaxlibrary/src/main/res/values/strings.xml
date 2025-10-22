@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="date_util_time_wrong"> time is wrong</string>
+    <string name="date_util_time_year"> year age</string>
+    <string name="date_util_time_month"> month age</string>
+    <string name="date_util_time_day"> day age</string>
+    <string name="date_util_time_hour"> hour age</string>
+    <string name="date_util_time_min"> min age</string>
+
+    <string name="date_util_time_just">just</string>
+
+    <string name="date_util_time_year_ex">Year</string>
+    <string name="date_util_time_month_ex">Month</string>
+    <string name="date_util_time_day_ex">Day</string>
+    <string name="date_util_time_hour_ex">Hour</string>
+    <string name="date_util_time_min_ex">Min</string>
+    <string name="date_util_time_sec_ex">Sec</string>
+    <string name="status_min_close">Min Close</string>
+</resources>

@@ -1,5 +1,6 @@
 package com.mettax.call
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -91,6 +92,11 @@ class MainActivity : AppCompatActivity() {
                 channel.muteSpeaker(speakerStatus)
                 speakerStatus = true
             }
+        }
+
+        findViewById<Button>(R.id.openVideoPlayer).setOnClickListener {
+            val intent = Intent(this, VideoPlayerExampleActivity::class.java)
+            startActivity(intent)
         }
 
     }

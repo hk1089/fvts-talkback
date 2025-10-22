@@ -9,7 +9,6 @@ import androidx.fragment.app.FragmentActivity;
 import com.babelstar.gviewer.NetClient;
 import com.hk1089.mettax.listener.PermissionListener;
 import com.hk1089.mettax.listener.TalkConnectionListener;
-import com.hk1089.mettax.play.Talkback;
 import com.hk1089.mettax.utils.Extensions;
 
 import java.util.ArrayList;
@@ -20,7 +19,6 @@ public class Channel {
     private NetClient mNetClient;
     private String mServer;
     private String mDevIdno;
-    private Talkback mTalkback;
     private boolean isConnected = false;
     public Channel(Context context) {
         mContext = context;
@@ -62,32 +60,11 @@ public class Channel {
         return true;
     }
     protected void onTalkStart() {
-        if (mTalkback == null) {
-            if (!updateServer()) {
-                return;
-            }
-
-            mTalkback = new Talkback();
-            mTalkback.startTalkback(mDevIdno, 1);
-            mTalkback.setTalkConnectionListener(new TalkConnectionListener() {
-                @Override
-                public void onCallConnected() {
-                    isConnected = true;
-                }
-
-                @Override
-                public void onCallDisconnected() {
-                    isConnected = false;
-                }
-            });
-        }
+        // Talkback functionality removed
     }
 
     protected void onTalkStop() {
-        if (mTalkback != null) {
-            mTalkback.stopTalkback();
-            mTalkback = null;
-        }
+        // Talkback functionality removed
     }
 
 

@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.hk1089.mettax"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 24
@@ -50,7 +50,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.hk1089"
                 artifactId = "fvts-talkback"
-                version = "1.0.5"
+                version = "1.0.6"
             }
         }
     }
