@@ -250,6 +250,7 @@ public class VideoPlayer {
         if (rpInit != null) isPlaying = rpInit.isViewing();
 
         final AppCompatImageButton playPauseBtn = makeIconBtn(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play);
+        playPauseBtn.setId(2000 + videoIndex); // Set ID for play/pause button
         playPauseBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
 
         playPauseBtn.setOnClickListener(v -> {
@@ -267,6 +268,7 @@ public class VideoPlayer {
 
         // --- Mute / Unmute ---
         final AppCompatImageButton muteBtn = makeIconBtn(mIsMuted[videoIndex] ? R.drawable.ic_mute : R.drawable.ic_unmute);
+        muteBtn.setId(3000 + videoIndex); // Set ID for mute button
         muteBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
 
         muteBtn.setOnClickListener(v -> {
@@ -290,6 +292,7 @@ public class VideoPlayer {
 
         // --- Snapshot ---
         final AppCompatImageButton snapshotBtn = makeIconBtn(R.drawable.ic_snap);
+        snapshotBtn.setId(6000 + videoIndex); // Set ID for snapshot button
         snapshotBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
 
         snapshotBtn.setOnClickListener(v -> {
@@ -317,6 +320,7 @@ public class VideoPlayer {
 
         // --- Fullscreen ---
         final AppCompatImageButton fullscreenBtn = makeIconBtn(R.drawable.ic_fullscreen);
+        fullscreenBtn.setId(4000 + videoIndex); // Set ID for fullscreen button
         fullscreenBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
         fullscreenBtn.setOnClickListener(v -> enterFullscreen(videoIndex));
 
@@ -634,22 +638,17 @@ public class VideoPlayer {
                     realPlay.stopSound();
                 }
 
-                // Update the button icon
-                Button muteBtn = mMainLayout.findViewById(3000 + i);
-                if (muteBtn != null) {
-                    try {
-                        Resources resources = mActivity.getResources();
-                        Drawable muteIcon = ContextCompat.getDrawable(mActivity,
-                            resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
-                        if (muteIcon != null) {
-                            muteIcon.setBounds(0, 0, 70, 70);
-                            muteBtn.setCompoundDrawables(muteIcon, null, null, null);
-                        } else {
-                            muteBtn.setText("🔇");
-                        }
-                    } catch (Exception e) {
-                        muteBtn.setText("🔇");
+                // Update the button icon using AppCompatImageButton approach
+                AppCompatImageButton muteBtn = null;
+                for (AppCompatImageButton button : mGridControlButtons[i]) {
+                    if (button.getId() == 3000 + i) { // Mute button ID
+                        muteBtn = button;
+                        break;
                     }
+                }
+                
+                if (muteBtn != null) {
+                    muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
                 }
 
                 Log.d("VideoPlayer", "Auto-muted channel " + i + " (switching to channel " + excludeChannel + ")");
