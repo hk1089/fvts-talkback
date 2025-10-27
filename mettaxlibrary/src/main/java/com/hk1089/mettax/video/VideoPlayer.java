@@ -2,18 +2,26 @@ package com.hk1089.mettax.video;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Button;
 import android.widget.RelativeLayout;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+
+import androidx.annotation.DrawableRes;
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.core.content.ContextCompat;
+import androidx.core.widget.ImageViewCompat;
+
 import android.content.res.Resources;
 import android.os.Environment;
 import java.io.File;
@@ -22,6 +30,7 @@ import java.text.SimpleDateFormat;
 import java.util.Locale;
 
 import com.babelstar.gviewer.NetClient;
+import com.hk1089.mettax.R;
 import com.hk1089.mettax.utils.AspectRatioRelativeLayout;
 import com.hk1089.mettax.utils.SquareRelativeLayout;
 
@@ -49,7 +58,7 @@ public class VideoPlayer {
     private boolean[] mGridControlsVisible; // Track visibility for each channel's controls
     private android.os.Handler mGridControlsHandler = new android.os.Handler();
     private Runnable[] mGridHideControlsRunnable; // Auto-hide runnables for each channel
-    private List<Button>[] mGridControlButtons; // Store references to control buttons for each channel
+    private List<AppCompatImageButton>[] mGridControlButtons; // Store references to control buttons for each channel
 
     // Fullscreen components
     private boolean mIsFullscreen = false;
@@ -57,9 +66,10 @@ public class VideoPlayer {
     private android.widget.FrameLayout mFullscreenLayout;
     private VideoView mFullscreenVideoView;
     private RealPlay mFullscreenRealPlay;
-    private Button mFullscreenCloseBtn;
-    private Button mFullscreenMuteBtn;
-    private Button mFullscreenPlayPauseBtn;
+    private AppCompatImageButton mFullscreenCloseBtn;
+    private AppCompatImageButton mFullscreenMuteBtn;
+    private AppCompatImageButton mFullscreenPlayPauseBtn;
+    private AppCompatImageButton mFullscreenSnapshotBtn;
     private android.widget.LinearLayout mFullscreenControlsLayout;
     private boolean mControlsVisible = true;
     private android.os.Handler mControlsHandler = new android.os.Handler();
@@ -194,12 +204,29 @@ public class VideoPlayer {
     }
 
 
+    // Create a uniformly styled ImageButton (CENTER_INSIDE, white tint, ripple)
+    private AppCompatImageButton makeIconBtn(@DrawableRes int iconRes) {
+        return makeIconBtn(iconRes, dp(14)); // Default size 14dp
+    }
+
+    // Create a uniformly styled ImageButton with custom size
+    private AppCompatImageButton makeIconBtn(@DrawableRes int iconRes, int sizeDp) {
+        AppCompatImageButton b = new AppCompatImageButton(mActivity);
+        b.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        b.setImageDrawable(AppCompatResources.getDrawable(mActivity, iconRes));
+        ImageViewCompat.setImageTintList(b, ColorStateList.valueOf(Color.WHITE));
+        b.setPadding(dp(4), dp(8), dp(4), dp(8));
+        b.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        b.setAdjustViewBounds(true);
+        b.setFocusable(true);
+        b.setClickable(true);
+        b.setMaxWidth(sizeDp);
+        b.setMaxHeight(sizeDp);
+        return b;
+    }
+
 
     private void createControlButtons(RelativeLayout container, int videoIndex) {
-        Resources resources = mActivity.getResources();
-
-
-
         // ---- Bottom control bar (equal spacing) ----
         LinearLayout bottomBar = new LinearLayout(mActivity);
         bottomBar.setOrientation(LinearLayout.HORIZONTAL);
@@ -209,233 +236,104 @@ public class VideoPlayer {
 
         RelativeLayout.LayoutParams barParams = new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT,
-                RelativeLayout.LayoutParams.WRAP_CONTENT
+                dp(32) // tweak to taste
         );
         barParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
         bottomBar.setLayoutParams(barParams);
 
-        // Shared LayoutParams so each child takes equal width
-        LinearLayout.LayoutParams equalSlot = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        equalSlot.gravity = Gravity.CENTER;
+        // Each child fills 1/4 width
+        LinearLayout.LayoutParams slot = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
 
-        // --- Play/Pause ---
-        Button playPauseBtn = new Button(mActivity);
-        playPauseBtn.setId(2000 + videoIndex);
-        playPauseBtn.setBackgroundColor(Color.parseColor("#00000000"));
-        playPauseBtn.setPadding(dp(0), dp(0), dp(0), dp(0));
-        playPauseBtn.setLayoutParams(equalSlot);
+        // --- Play / Pause ---
+        boolean isPlaying = true;
+        RealPlay rpInit = (videoIndex < mRealPlays.size()) ? mRealPlays.get(videoIndex) : null;
+        if (rpInit != null) isPlaying = rpInit.isViewing();
 
-        // Set initial icon/text
-        try {
-            RealPlay realPlay = mRealPlays.get(videoIndex);
-            if (realPlay != null && realPlay.isViewing()) {
-                Drawable pauseIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_pause", "drawable", mActivity.getPackageName()));
-                if (pauseIcon != null) {
-                    pauseIcon.setBounds(0, 0, dp(24), dp(24));
-                    playPauseBtn.setCompoundDrawables(pauseIcon, null, null, null);
-                }
-            } else {
-                Drawable playIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_play", "drawable", mActivity.getPackageName()));
-                if (playIcon != null) {
-                    playIcon.setBounds(0, 0, dp(24), dp(24));
-                    playPauseBtn.setCompoundDrawables(playIcon, null, null, null);
-                }
-            }
-        } catch (Exception e) {
-
-        }
+        final AppCompatImageButton playPauseBtn = makeIconBtn(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play);
+        playPauseBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
 
         playPauseBtn.setOnClickListener(v -> {
-            RealPlay realPlay = mRealPlays.get(videoIndex);
-            if (realPlay == null) return;
-
-            if (realPlay.isViewing()) {
-                realPlay.StopAV();
-
-                    Drawable playIcon = ContextCompat.getDrawable(mActivity,
-                            resources.getIdentifier("ic_play", "drawable", mActivity.getPackageName()));
-                    if (playIcon != null) {
-                        playIcon.setBounds(0, 0, dp(24), dp(24));
-                        playPauseBtn.setCompoundDrawables(playIcon, null, null, null);
-                    }
+            RealPlay rp = mRealPlays.get(videoIndex);
+            if (rp == null) return;
+            if (rp.isViewing()) {
+                rp.StopAV();
+                playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
             } else {
-                realPlay.StartAV(false, true);
-
-                    Drawable pauseIcon = ContextCompat.getDrawable(mActivity,
-                            resources.getIdentifier("ic_pause", "drawable", mActivity.getPackageName()));
-                    if (pauseIcon != null) {
-                        pauseIcon.setBounds(0, 0, dp(24), dp(24));
-                        playPauseBtn.setCompoundDrawables(pauseIcon, null, null, null);
-                    }
-
+                rp.StartAV(false, true);
+                playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
             }
-            
-            // Also update fullscreen button if it's showing this channel
-            if (mIsFullscreen && mFullscreenChannel == videoIndex) {
-                updateFullscreenControls();
-            }
+            if (mIsFullscreen && mFullscreenChannel == videoIndex) updateFullscreenControls();
         });
 
-
-
-        // --- Mute/Unmute ---
-        Button muteBtn = new Button(mActivity);
-        muteBtn.setId(3000 + videoIndex);
-        muteBtn.setBackgroundColor(Color.parseColor("#00000000"));
-        muteBtn.setPadding(dp(0), dp(0), dp(0), dp(0));
-        muteBtn.setLayoutParams(equalSlot);
-
-        try {
-            Drawable muteIcon = ContextCompat.getDrawable(mActivity,
-                    resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
-            if (muteIcon != null) {
-                muteIcon.setBounds(0, 0, dp(24), dp(24));
-                muteBtn.setCompoundDrawables(muteIcon, null, null, null);
-            } else {
-                muteBtn.setText("🔇");
-            }
-        } catch (Exception e) {
-            muteBtn.setText("🔇");
-        }
+        // --- Mute / Unmute ---
+        final AppCompatImageButton muteBtn = makeIconBtn(mIsMuted[videoIndex] ? R.drawable.ic_mute : R.drawable.ic_unmute);
+        muteBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
 
         muteBtn.setOnClickListener(v -> {
-            RealPlay realPlay = mRealPlays.get(videoIndex);
-            if (realPlay == null) return;
+            RealPlay rp = mRealPlays.get(videoIndex);
+            if (rp == null) return;
 
             if (mIsMuted[videoIndex]) {
                 muteAllOtherChannels(videoIndex);
                 mIsMuted[videoIndex] = false;
-                realPlay.playSound();
-                try {
-                    Drawable unmuteIcon = ContextCompat.getDrawable(mActivity,
-                            resources.getIdentifier("ic_unmute", "drawable", mActivity.getPackageName()));
-                    if (unmuteIcon != null) {
-                        unmuteIcon.setBounds(0, 0, dp(24), dp(24));
-                        muteBtn.setCompoundDrawables(unmuteIcon, null, null, null);
-                    } else {
-                        muteBtn.setText("🔊");
-                    }
-                } catch (Exception e) {
-                    muteBtn.setText("🔊");
-                }
-                if (mVideoPlayerListener != null) {
-                    mVideoPlayerListener.onVideoAudioStart(mVideoViews.get(videoIndex), videoIndex);
-                }
+                rp.playSound();
+                muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
+                if (mVideoPlayerListener != null) mVideoPlayerListener.onVideoAudioStart(mVideoViews.get(videoIndex), videoIndex);
             } else {
                 mIsMuted[videoIndex] = true;
-                realPlay.stopSound();
-                try {
-                    Drawable muteIcon = ContextCompat.getDrawable(mActivity,
-                            resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
-                    if (muteIcon != null) {
-                        muteIcon.setBounds(0, 0, dp(24), dp(24));
-                        muteBtn.setCompoundDrawables(muteIcon, null, null, null);
-                    } else {
-                        muteBtn.setText("🔇");
-                    }
-                } catch (Exception e) {
-                    muteBtn.setText("🔇");
-                }
-                if (mVideoPlayerListener != null) {
-                    mVideoPlayerListener.onVideoAudioStop(mVideoViews.get(videoIndex), videoIndex);
-                }
+                rp.stopSound();
+                muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
+                if (mVideoPlayerListener != null) mVideoPlayerListener.onVideoAudioStop(mVideoViews.get(videoIndex), videoIndex);
             }
-            
-            // Also update fullscreen mute button if it's showing this channel
-            if (mIsFullscreen && mFullscreenChannel == videoIndex) {
-                updateFullscreenControls();
-            }
+            if (mIsFullscreen && mFullscreenChannel == videoIndex) updateFullscreenControls();
         });
-// --- Snapshot ---
-        Button snapshotBtn = new Button(mActivity);
-        snapshotBtn.setId(6000 + videoIndex);
-        snapshotBtn.setBackgroundColor(Color.parseColor("#00000000"));
-        snapshotBtn.setPadding(dp(0), dp(0), dp(0), dp(0));
-        snapshotBtn.setLayoutParams(equalSlot);
 
-        try {
-            Drawable snapIcon = ContextCompat.getDrawable(mActivity,
-                    resources.getIdentifier("ic_snap", "drawable", mActivity.getPackageName()));
-            if (snapIcon != null) {
-                snapIcon.setBounds(0, 0, dp(24), dp(24));
-                snapshotBtn.setCompoundDrawables(snapIcon, null, null, null);
-            } else {
-                snapshotBtn.setText("📷");
-                snapshotBtn.setTextColor(Color.WHITE);
-                snapshotBtn.setTextSize(12);
-            }
-        } catch (Exception e) {
-            snapshotBtn.setText("📷");
-            snapshotBtn.setTextColor(Color.WHITE);
-            snapshotBtn.setTextSize(12);
-        }
+        // --- Snapshot ---
+        final AppCompatImageButton snapshotBtn = makeIconBtn(R.drawable.ic_snap);
+        snapshotBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
 
         snapshotBtn.setOnClickListener(v -> {
-            RealPlay realPlay = mRealPlays.get(videoIndex);
-            if (realPlay != null) {
-                String timestamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(new java.util.Date());
-                String filename = "snapshot_ch" + (videoIndex + 1) + "_" + timestamp + ".png";
-                java.io.File externalDir = mActivity.getExternalFilesDir(null);
-                if (externalDir != null) {
-                    java.io.File snapshotsDir = new java.io.File(externalDir, "snapshots");
-                    if (!snapshotsDir.exists()) snapshotsDir.mkdirs();
-                    java.io.File snapshotFile = new java.io.File(snapshotsDir, filename);
-                    boolean success = realPlay.savePngFile(snapshotFile.getAbsolutePath());
-                    if (success) {
-                        android.util.Log.d("VideoPlayer", "Snapshot: " + snapshotFile.getAbsolutePath());
-                        showSnapshotDialog(snapshotFile, videoIndex);
-                        if (mVideoPlayerListener != null) {
-                            mVideoPlayerListener.onVideoSnapshot(mVideoViews.get(videoIndex), videoIndex);
-                        }
-                    } else {
-                        android.util.Log.e("VideoPlayer", "Snapshot failed ch " + videoIndex);
-                        showSnapError("Failed to capture snapshot");
-                    }
+            RealPlay rp = mRealPlays.get(videoIndex);
+            if (rp == null) return;
+            String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(new java.util.Date());
+            String filename = "snapshot_ch" + (videoIndex + 1) + "_" + ts + ".png";
+            java.io.File ext = mActivity.getExternalFilesDir(null);
+            if (ext != null) {
+                java.io.File dir = new java.io.File(ext, "snapshots");
+                if (!dir.exists()) dir.mkdirs();
+                java.io.File f = new java.io.File(dir, filename);
+                boolean ok = rp.savePngFile(f.getAbsolutePath());
+                if (ok) {
+                    android.util.Log.d("VideoPlayer", "Snapshot: " + f.getAbsolutePath());
+                    showSnapshotDialog(f, videoIndex);
+                    if (mVideoPlayerListener != null) mVideoPlayerListener.onVideoSnapshot(mVideoViews.get(videoIndex), videoIndex);
                 } else {
-                    android.util.Log.e("VideoPlayer", "External files dir unavailable");
-                    showSnapError("Storage not available");
+                    showSnapError("Failed to capture snapshot");
                 }
+            } else {
+                showSnapError("Storage not available");
             }
         });
-        // --- Fullscreen ---
-        Button fullscreenBtn = new Button(mActivity);
-        fullscreenBtn.setId(4000 + videoIndex);
-        fullscreenBtn.setBackgroundColor(Color.parseColor("#00000000"));
-        fullscreenBtn.setPadding(dp(0), dp(0), dp(0), dp(0));
-        fullscreenBtn.setLayoutParams(equalSlot);
 
-        try {
-            Drawable fullscreenIcon = ContextCompat.getDrawable(mActivity,
-                    resources.getIdentifier("ic_fullscreen", "drawable", mActivity.getPackageName()));
-            if (fullscreenIcon != null) {
-                fullscreenIcon.setBounds(0, 0, dp(24), dp(24));
-                fullscreenBtn.setCompoundDrawables(fullscreenIcon, null, null, null);
-            } else {
-                fullscreenBtn.setText("⛶");
-            }
-        } catch (Exception e) {
-            fullscreenBtn.setText("⛶");
-        }
+        // --- Fullscreen ---
+        final AppCompatImageButton fullscreenBtn = makeIconBtn(R.drawable.ic_fullscreen);
+        fullscreenBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
         fullscreenBtn.setOnClickListener(v -> enterFullscreen(videoIndex));
 
-        // Store button references for animation
+        // If you store for animations, accept View not Button
         mGridControlButtons[videoIndex].add(playPauseBtn);
         mGridControlButtons[videoIndex].add(muteBtn);
         mGridControlButtons[videoIndex].add(snapshotBtn);
         mGridControlButtons[videoIndex].add(fullscreenBtn);
 
-        // Add buttons to bottom bar (equal weights)
+        // Add to bar and attach
         bottomBar.addView(playPauseBtn);
         bottomBar.addView(muteBtn);
         bottomBar.addView(snapshotBtn);
         bottomBar.addView(fullscreenBtn);
-
-        // Finally, add the bottom bar to the container
         container.addView(bottomBar);
-        
-        // Start auto-hide timer for this channel
+
+        // Auto-hide as before
         startGridAutoHideTimer(videoIndex);
     }
 
@@ -1028,98 +926,35 @@ public class VideoPlayer {
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
         );
 
-        // Play/Pause button
-        mFullscreenPlayPauseBtn = new android.widget.Button(mActivity);
+        // Play/Pause button - using makeIconBtn with custom size for fullscreen
+        boolean isPlaying = false;
+        if (mFullscreenRealPlay != null) isPlaying = mFullscreenRealPlay.isViewing();
+        mFullscreenPlayPauseBtn = makeIconBtn(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play, dp(48));
         mFullscreenPlayPauseBtn.setLayoutParams(btnLp);
-        mFullscreenPlayPauseBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000")); // Semi-transparent black
         mFullscreenPlayPauseBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
-        mFullscreenPlayPauseBtn.setMinWidth(dp(64));
-        mFullscreenPlayPauseBtn.setMinHeight(dp(64));
-
-        // Set pause icon from drawable
-        try {
-            android.content.res.Resources resources = mActivity.getResources();
-            android.graphics.drawable.Drawable pauseIcon = androidx.core.content.ContextCompat.getDrawable(mActivity,
-                resources.getIdentifier("ic_pause", "drawable", mActivity.getPackageName()));
-            if (pauseIcon != null) {
-                pauseIcon.setBounds(0, 0, dp(32), dp(32));
-                mFullscreenPlayPauseBtn.setCompoundDrawables(pauseIcon, null, null, null);
-            } else {
-                mFullscreenPlayPauseBtn.setText("⏸");
-                mFullscreenPlayPauseBtn.setTextColor(android.graphics.Color.WHITE);
-                mFullscreenPlayPauseBtn.setTextSize(20);
-            }
-        } catch (Exception e) {
-            mFullscreenPlayPauseBtn.setText("⏸");
-            mFullscreenPlayPauseBtn.setTextColor(android.graphics.Color.WHITE);
-            mFullscreenPlayPauseBtn.setTextSize(20);
-        }
-
-        // Rotate the entire button 90 degrees
+        mFullscreenPlayPauseBtn.setBackgroundColor(android.graphics.Color.parseColor("#80000000"));
         mFullscreenPlayPauseBtn.setRotation(90f);
 
         mFullscreenPlayPauseBtn.setOnClickListener(v -> toggleFullscreenPlayPause());
 
-        // Mute button
-        mFullscreenMuteBtn = new android.widget.Button(mActivity);
-        mFullscreenMuteBtn.setLayoutParams(btnLp);
-        mFullscreenMuteBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000")); // Semi-transparent black
-        mFullscreenMuteBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
-        mFullscreenMuteBtn.setMinWidth(dp(64));
-        mFullscreenMuteBtn.setMinHeight(dp(64));
-
-        // Set mute icon from drawable
-        try {
-            android.content.res.Resources resources = mActivity.getResources();
-            android.graphics.drawable.Drawable muteIcon = androidx.core.content.ContextCompat.getDrawable(mActivity,
-                resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
-            if (muteIcon != null) {
-                muteIcon.setBounds(0, 0, dp(32), dp(32));
-                mFullscreenMuteBtn.setCompoundDrawables(muteIcon, null, null, null);
-            } else {
-                mFullscreenMuteBtn.setText("🔇");
-                mFullscreenMuteBtn.setTextColor(android.graphics.Color.WHITE);
-                mFullscreenMuteBtn.setTextSize(20);
-            }
-        } catch (Exception e) {
-            mFullscreenMuteBtn.setText("🔇");
-            mFullscreenMuteBtn.setTextColor(android.graphics.Color.WHITE);
-            mFullscreenMuteBtn.setTextSize(20);
+        // Mute button - using makeIconBtn with custom size for fullscreen
+        boolean isMuted = true; // Default to muted
+        if (mFullscreenChannel >= 0 && mFullscreenChannel < mIsMuted.length) {
+            isMuted = mIsMuted[mFullscreenChannel];
         }
-
-        // Rotate the entire button 90 degrees
+        mFullscreenMuteBtn = makeIconBtn(isMuted ? R.drawable.ic_mute : R.drawable.ic_unmute, dp(48));
+        mFullscreenMuteBtn.setLayoutParams(btnLp);
+        mFullscreenMuteBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
+        mFullscreenMuteBtn.setBackgroundColor(android.graphics.Color.parseColor("#80000000"));
         mFullscreenMuteBtn.setRotation(90f);
 
         mFullscreenMuteBtn.setOnClickListener(v -> toggleFullscreenMute());
 
-        // Snapshot button
-        android.widget.Button mFullscreenSnapshotBtn = new android.widget.Button(mActivity);
+        // Snapshot button - using makeIconBtn with custom size for fullscreen
+        mFullscreenSnapshotBtn = makeIconBtn(R.drawable.ic_snap, dp(48));
         mFullscreenSnapshotBtn.setLayoutParams(btnLp);
-        mFullscreenSnapshotBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000")); // Semi-transparent black
         mFullscreenSnapshotBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
-        mFullscreenSnapshotBtn.setMinWidth(dp(64));
-        mFullscreenSnapshotBtn.setMinHeight(dp(64));
-
-        // Set snapshot icon from drawable
-        try {
-            android.content.res.Resources resources = mActivity.getResources();
-            android.graphics.drawable.Drawable snapshotIcon = androidx.core.content.ContextCompat.getDrawable(mActivity,
-                resources.getIdentifier("ic_snap", "drawable", mActivity.getPackageName()));
-            if (snapshotIcon != null) {
-                snapshotIcon.setBounds(0, 0, dp(32), dp(32));
-                mFullscreenSnapshotBtn.setCompoundDrawables(snapshotIcon, null, null, null);
-            } else {
-                mFullscreenSnapshotBtn.setText("📷");
-                mFullscreenSnapshotBtn.setTextColor(android.graphics.Color.WHITE);
-                mFullscreenSnapshotBtn.setTextSize(20);
-            }
-        } catch (Exception e) {
-            mFullscreenSnapshotBtn.setText("📷");
-            mFullscreenSnapshotBtn.setTextColor(android.graphics.Color.WHITE);
-            mFullscreenSnapshotBtn.setTextSize(20);
-        }
-
-        // Rotate the entire button 90 degrees
+        mFullscreenSnapshotBtn.setBackgroundColor(android.graphics.Color.parseColor("#80000000"));
         mFullscreenSnapshotBtn.setRotation(90f);
 
         mFullscreenSnapshotBtn.setOnClickListener(v -> {
@@ -1154,35 +989,9 @@ public class VideoPlayer {
             }
         });
 
-        // Close button
-        mFullscreenCloseBtn = new android.widget.Button(mActivity);
+        // Close button - using makeIconBtn with custom size for fullscreen
+        mFullscreenCloseBtn = makeIconBtn(R.drawable.ic_fullscreen_exit, dp(32));
         mFullscreenCloseBtn.setLayoutParams(btnLp);
-        mFullscreenCloseBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000")); // Semi-transparent black
-        mFullscreenCloseBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
-        mFullscreenCloseBtn.setMinWidth(dp(64));
-        mFullscreenCloseBtn.setMinHeight(dp(64));
-
-        // Set close icon from drawable
-        try {
-            android.content.res.Resources resources = mActivity.getResources();
-            android.graphics.drawable.Drawable closeIcon = androidx.core.content.ContextCompat.getDrawable(mActivity,
-                    resources.getIdentifier("ic_fullscreen_exit", "drawable", mActivity.getPackageName()));
-            if (closeIcon != null) {
-                closeIcon.setBounds(0, 0, dp(32), dp(32));
-                mFullscreenCloseBtn.setCompoundDrawables(closeIcon, null, null, null);
-            } else {
-                mFullscreenCloseBtn.setText("✕");
-                mFullscreenCloseBtn.setTextColor(android.graphics.Color.WHITE);
-                mFullscreenCloseBtn.setTextSize(20);
-            }
-        } catch (Exception e) {
-            mFullscreenCloseBtn.setText("✕");
-            mFullscreenCloseBtn.setTextColor(android.graphics.Color.WHITE);
-            mFullscreenCloseBtn.setTextSize(20);
-        }
-
-        // Rotate the entire button 90 degrees
-        mFullscreenCloseBtn.setRotation(90f);
 
         mFullscreenCloseBtn.setOnClickListener(v -> exitFullscreen());
 
@@ -1200,6 +1009,8 @@ public class VideoPlayer {
         mFullscreenControlsLayout.addView(spacer1, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
 
         mFullscreenControlsLayout.addView(mFullscreenCloseBtn);
+        android.view.View spacer4 = new android.view.View(mActivity);
+        mFullscreenControlsLayout.addView(spacer4, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
 
 
         // Add to root fullscreen layout (controls after video so they overlay)
@@ -1274,40 +1085,12 @@ public class VideoPlayer {
 
     private void toggleFullscreenPlayPause() {
         if (mFullscreenRealPlay != null) {
-            try {
-                Resources resources = mActivity.getResources();
-                if (mFullscreenRealPlay.isViewing()) {
-                    mFullscreenRealPlay.StopAV();
-                    // Set play icon
-                    Drawable playIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_play", "drawable", mActivity.getPackageName()));
-                    if (playIcon != null) {
-                        playIcon.setBounds(0, 0, 60, 60);
-                        mFullscreenPlayPauseBtn.setCompoundDrawables(playIcon, null, null, null);
-                    } else {
-                        mFullscreenPlayPauseBtn.setText("▶");
-                    }
-                } else {
-                    mFullscreenRealPlay.StartAV(false, true);
-                    // Set pause icon
-                    Drawable pauseIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_pause", "drawable", mActivity.getPackageName()));
-                    if (pauseIcon != null) {
-                        pauseIcon.setBounds(0, 0, 60, 60);
-                        mFullscreenPlayPauseBtn.setCompoundDrawables(pauseIcon, null, null, null);
-                    } else {
-                        mFullscreenPlayPauseBtn.setText("⏸");
-                    }
-                }
-            } catch (Exception e) {
-                // Fallback to text
-                if (mFullscreenRealPlay.isViewing()) {
-                    mFullscreenRealPlay.StopAV();
-                    mFullscreenPlayPauseBtn.setText("▶");
-                } else {
-                    mFullscreenRealPlay.StartAV(false, true);
-                    mFullscreenPlayPauseBtn.setText("⏸");
-                }
+            if (mFullscreenRealPlay.isViewing()) {
+                mFullscreenRealPlay.StopAV();
+                mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
+            } else {
+                mFullscreenRealPlay.StartAV(false, true);
+                mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
             }
             
             // Also update the corresponding grid player button
@@ -1317,40 +1100,12 @@ public class VideoPlayer {
 
     private void toggleFullscreenMute() {
         if (mFullscreenRealPlay != null) {
-            try {
-                Resources resources = mActivity.getResources();
-                if (mFullscreenRealPlay.isSounding()) {
-                    mFullscreenRealPlay.stopSound();
-                    // Set mute icon
-                    Drawable muteIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
-                    if (muteIcon != null) {
-                        muteIcon.setBounds(0, 0, 60, 60);
-                        mFullscreenMuteBtn.setCompoundDrawables(muteIcon, null, null, null);
-                    } else {
-                        mFullscreenMuteBtn.setText("🔇");
-                    }
-                } else {
-                    mFullscreenRealPlay.playSound();
-                    // Set unmute icon
-                    Drawable unmuteIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_unmute", "drawable", mActivity.getPackageName()));
-                    if (unmuteIcon != null) {
-                        unmuteIcon.setBounds(0, 0, 60, 60);
-                        mFullscreenMuteBtn.setCompoundDrawables(unmuteIcon, null, null, null);
-                    } else {
-                        mFullscreenMuteBtn.setText("🔊");
-                    }
-                }
-            } catch (Exception e) {
-                // Fallback to text
-                if (mFullscreenRealPlay.isSounding()) {
-                    mFullscreenRealPlay.stopSound();
-                    mFullscreenMuteBtn.setText("🔇");
-                } else {
-                    mFullscreenRealPlay.playSound();
-                    mFullscreenMuteBtn.setText("🔊");
-                }
+            if (mFullscreenRealPlay.isSounding()) {
+                mFullscreenRealPlay.stopSound();
+                mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
+            } else {
+                mFullscreenRealPlay.playSound();
+                mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
             }
             
             // Also update the corresponding grid player mute button
@@ -1360,83 +1115,18 @@ public class VideoPlayer {
 
     private void updateFullscreenControls() {
         if (mFullscreenRealPlay != null) {
-            try {
-                android.content.res.Resources resources = mActivity.getResources();
+            // Update play/pause button
+            if (mFullscreenRealPlay.isViewing()) {
+                mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
+            } else {
+                mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
+            }
 
-                // Update play/pause button
-                if (mFullscreenRealPlay.isViewing()) {
-                    android.graphics.drawable.Drawable pauseIcon = androidx.core.content.ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_pause", "drawable", mActivity.getPackageName()));
-                    if (pauseIcon != null) {
-                        pauseIcon.setBounds(0, 0, dp(32), dp(32));
-                        mFullscreenPlayPauseBtn.setCompoundDrawables(pauseIcon, null, null, null);
-                        mFullscreenPlayPauseBtn.setText(""); // Clear text when using icon
-                    } else {
-                        mFullscreenPlayPauseBtn.setText("⏸");
-                        mFullscreenPlayPauseBtn.setTextColor(android.graphics.Color.WHITE);
-                        mFullscreenPlayPauseBtn.setTextSize(20);
-                    }
-                } else {
-                    android.graphics.drawable.Drawable playIcon = androidx.core.content.ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_play", "drawable", mActivity.getPackageName()));
-                    if (playIcon != null) {
-                        playIcon.setBounds(0, 0, dp(32), dp(32));
-                        mFullscreenPlayPauseBtn.setCompoundDrawables(playIcon, null, null, null);
-                        mFullscreenPlayPauseBtn.setText(""); // Clear text when using icon
-                    } else {
-                        mFullscreenPlayPauseBtn.setText("▶");
-                        mFullscreenPlayPauseBtn.setTextColor(android.graphics.Color.WHITE);
-                        mFullscreenPlayPauseBtn.setTextSize(20);
-                    }
-                }
-
-                // Update mute button
-                if (mFullscreenRealPlay.isSounding()) {
-                    android.graphics.drawable.Drawable unmuteIcon = androidx.core.content.ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_unmute", "drawable", mActivity.getPackageName()));
-                    if (unmuteIcon != null) {
-                        unmuteIcon.setBounds(0, 0, dp(32), dp(32));
-                        mFullscreenMuteBtn.setCompoundDrawables(unmuteIcon, null, null, null);
-                        mFullscreenMuteBtn.setText(""); // Clear text when using icon
-                    } else {
-                        mFullscreenMuteBtn.setText("🔊");
-                        mFullscreenMuteBtn.setTextColor(android.graphics.Color.WHITE);
-                        mFullscreenMuteBtn.setTextSize(20);
-                    }
-                } else {
-                    android.graphics.drawable.Drawable muteIcon = androidx.core.content.ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
-                    if (muteIcon != null) {
-                        muteIcon.setBounds(0, 0, dp(32), dp(32));
-                        mFullscreenMuteBtn.setCompoundDrawables(muteIcon, null, null, null);
-                        mFullscreenMuteBtn.setText(""); // Clear text when using icon
-                    } else {
-                        mFullscreenMuteBtn.setText("🔇");
-                        mFullscreenMuteBtn.setTextColor(android.graphics.Color.WHITE);
-                        mFullscreenMuteBtn.setTextSize(20);
-                    }
-                }
-            } catch (Exception e) {
-                // Fallback to text
-                if (mFullscreenRealPlay.isViewing()) {
-                    mFullscreenPlayPauseBtn.setText("⏸");
-                    mFullscreenPlayPauseBtn.setTextColor(android.graphics.Color.WHITE);
-                    mFullscreenPlayPauseBtn.setTextSize(20);
-                } else {
-                    mFullscreenPlayPauseBtn.setText("▶");
-                    mFullscreenPlayPauseBtn.setTextColor(android.graphics.Color.WHITE);
-                    mFullscreenPlayPauseBtn.setTextSize(20);
-                }
-
-                if (mFullscreenRealPlay.isSounding()) {
-                    mFullscreenMuteBtn.setText("🔊");
-                    mFullscreenMuteBtn.setTextColor(android.graphics.Color.WHITE);
-                    mFullscreenMuteBtn.setTextSize(20);
-                } else {
-                    mFullscreenMuteBtn.setText("🔇");
-                    mFullscreenMuteBtn.setTextColor(android.graphics.Color.WHITE);
-                    mFullscreenMuteBtn.setTextSize(20);
-                }
+            // Update mute button
+            if (mFullscreenRealPlay.isSounding()) {
+                mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
+            } else {
+                mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
             }
         }
     }
@@ -1852,14 +1542,20 @@ public class VideoPlayer {
         
         mGridControlsVisible[channelIndex] = true;
         
-        // Animate fade in for all buttons in this channel
-        for (Button button : mGridControlButtons[channelIndex]) {
-            if (button != null) {
-                button.setVisibility(android.view.View.VISIBLE);
-                button.animate()
-                    .alpha(1.0f)
-                    .setDuration(300)
-                    .setListener(null);
+        // Find the bottom bar for this channel and show it
+        RelativeLayout container = (RelativeLayout) mVideoViews.get(channelIndex).getParent();
+        if (container != null) {
+            for (int i = 0; i < container.getChildCount(); i++) {
+                android.view.View child = container.getChildAt(i);
+                if (child instanceof LinearLayout) {
+                    LinearLayout bottomBar = (LinearLayout) child;
+                    bottomBar.setVisibility(android.view.View.VISIBLE);
+                    bottomBar.animate()
+                        .alpha(1.0f)
+                        .setDuration(300)
+                        .setListener(null);
+                    break;
+                }
             }
         }
         
@@ -1872,18 +1568,24 @@ public class VideoPlayer {
         
         mGridControlsVisible[channelIndex] = false;
         
-        // Animate fade out for all buttons in this channel
-        for (Button button : mGridControlButtons[channelIndex]) {
-            if (button != null) {
-                button.animate()
-                    .alpha(0.0f)
-                    .setDuration(300)
-                    .setListener(new android.animation.AnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(android.animation.Animator animation) {
-                            button.setVisibility(android.view.View.GONE);
-                        }
-                    });
+        // Find the bottom bar for this channel and hide it
+        RelativeLayout container = (RelativeLayout) mVideoViews.get(channelIndex).getParent();
+        if (container != null) {
+            for (int i = 0; i < container.getChildCount(); i++) {
+                android.view.View child = container.getChildAt(i);
+                if (child instanceof LinearLayout) {
+                    LinearLayout bottomBar = (LinearLayout) child;
+                    bottomBar.animate()
+                        .alpha(0.0f)
+                        .setDuration(300)
+                        .setListener(new android.animation.AnimatorListenerAdapter() {
+                            @Override
+                            public void onAnimationEnd(android.animation.Animator animation) {
+                                bottomBar.setVisibility(android.view.View.GONE);
+                            }
+                        });
+                    break;
+                }
             }
         }
     }
@@ -1925,8 +1627,8 @@ public class VideoPlayer {
             if (realPlay == null) return;
             
             // Find the play/pause button for this channel
-            Button playPauseBtn = null;
-            for (Button button : mGridControlButtons[channelIndex]) {
+            AppCompatImageButton playPauseBtn = null;
+            for (AppCompatImageButton button : mGridControlButtons[channelIndex]) {
                 if (button.getId() == 2000 + channelIndex) { // Play/pause button ID
                     playPauseBtn = button;
                     break;
@@ -1937,23 +1639,17 @@ public class VideoPlayer {
                 Resources resources = mActivity.getResources();
                 if (realPlay.isViewing()) {
                     // Video is playing, show pause icon
-                    Drawable pauseIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_pause", "drawable", mActivity.getPackageName()));
+                    Drawable pauseIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_pause);
                     if (pauseIcon != null) {
-                        pauseIcon.setBounds(0, 0, dp(24), dp(24));
-                        playPauseBtn.setCompoundDrawables(pauseIcon, null, null, null);
-                    } else {
-                        playPauseBtn.setText("⏸");
+                        pauseIcon.setBounds(0, 0, dp(16), dp(16));
+                        playPauseBtn.setImageDrawable(pauseIcon);
                     }
                 } else {
                     // Video is paused, show play icon
-                    Drawable playIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_play", "drawable", mActivity.getPackageName()));
+                    Drawable playIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_play);
                     if (playIcon != null) {
-                        playIcon.setBounds(0, 0, dp(24), dp(24));
-                        playPauseBtn.setCompoundDrawables(playIcon, null, null, null);
-                    } else {
-                        playPauseBtn.setText("▶");
+                        playIcon.setBounds(0, 0, dp(16), dp(16));
+                        playPauseBtn.setImageDrawable(playIcon);
                     }
                 }
             }
@@ -1970,8 +1666,8 @@ public class VideoPlayer {
             if (realPlay == null) return;
             
             // Find the mute button for this channel
-            Button muteBtn = null;
-            for (Button button : mGridControlButtons[channelIndex]) {
+            AppCompatImageButton muteBtn = null;
+            for (AppCompatImageButton button : mGridControlButtons[channelIndex]) {
                 if (button.getId() == 3000 + channelIndex) { // Mute button ID
                     muteBtn = button;
                     break;
@@ -1982,23 +1678,17 @@ public class VideoPlayer {
                 Resources resources = mActivity.getResources();
                 if (realPlay.isSounding()) {
                     // Audio is playing, show mute icon
-                    Drawable muteIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
+                    Drawable muteIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_mute);
                     if (muteIcon != null) {
-                        muteIcon.setBounds(0, 0, dp(24), dp(24));
-                        muteBtn.setCompoundDrawables(muteIcon, null, null, null);
-                    } else {
-                        muteBtn.setText("🔇");
+                        muteIcon.setBounds(0, 0, dp(16), dp(16));
+                        muteBtn.setImageDrawable(muteIcon);
                     }
                 } else {
                     // Audio is muted, show unmute icon
-                    Drawable unmuteIcon = ContextCompat.getDrawable(mActivity,
-                        resources.getIdentifier("ic_unmute", "drawable", mActivity.getPackageName()));
+                    Drawable unmuteIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_unmute);
                     if (unmuteIcon != null) {
-                        unmuteIcon.setBounds(0, 0, dp(24), dp(24));
-                        muteBtn.setCompoundDrawables(unmuteIcon, null, null, null);
-                    } else {
-                        muteBtn.setText("🔊");
+                        unmuteIcon.setBounds(0, 0, dp(16), dp(16));
+                        muteBtn.setImageDrawable(unmuteIcon);
                     }
                 }
             }
