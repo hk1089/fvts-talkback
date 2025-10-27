@@ -777,7 +777,7 @@ public class VideoPlayer {
         mFullscreenPlayPauseBtn = makeIconBtn(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play, dp(48));
         mFullscreenPlayPauseBtn.setLayoutParams(btnLp);
         mFullscreenPlayPauseBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
-        mFullscreenPlayPauseBtn.setBackgroundColor(android.graphics.Color.parseColor("#80000000"));
+        mFullscreenPlayPauseBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000"));
         mFullscreenPlayPauseBtn.setRotation(90f);
 
         mFullscreenPlayPauseBtn.setOnClickListener(v -> toggleFullscreenPlayPause());
@@ -790,7 +790,7 @@ public class VideoPlayer {
         mFullscreenMuteBtn = makeIconBtn(isMuted ? R.drawable.ic_mute : R.drawable.ic_unmute, dp(48));
         mFullscreenMuteBtn.setLayoutParams(btnLp);
         mFullscreenMuteBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
-        mFullscreenMuteBtn.setBackgroundColor(android.graphics.Color.parseColor("#80000000"));
+        mFullscreenMuteBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000"));
         mFullscreenMuteBtn.setRotation(90f);
 
         mFullscreenMuteBtn.setOnClickListener(v -> toggleFullscreenMute());
@@ -799,7 +799,7 @@ public class VideoPlayer {
         mFullscreenSnapshotBtn = makeIconBtn(R.drawable.ic_snap, dp(48));
         mFullscreenSnapshotBtn.setLayoutParams(btnLp);
         mFullscreenSnapshotBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
-        mFullscreenSnapshotBtn.setBackgroundColor(android.graphics.Color.parseColor("#80000000"));
+        mFullscreenSnapshotBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000"));
         mFullscreenSnapshotBtn.setRotation(90f);
 
         mFullscreenSnapshotBtn.setOnClickListener(v -> {
@@ -1087,10 +1087,6 @@ public class VideoPlayer {
             // Add buttons
             builder.setPositiveButton("Share", (dialog, which) -> {
                 shareSnapshot(snapshotFile);
-            });
-
-            builder.setNeutralButton("Open Folder", (dialog, which) -> {
-                openSnapshotsFolder();
             });
 
             builder.setNegativeButton("Close", (dialog, which) -> {
