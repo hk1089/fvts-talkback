@@ -1761,19 +1761,19 @@ public class VideoPlayer {
             
             if (muteBtn != null) {
                 Resources resources = mActivity.getResources();
-                if (realPlay.isSounding()) {
-                    // Audio is playing, show mute icon
-                    Drawable muteIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_mute);
-                    if (muteIcon != null) {
-                        muteIcon.setBounds(0, 0, dp(16), dp(16));
-                        muteBtn.setImageDrawable(muteIcon);
-                    }
-                } else {
-                    // Audio is muted, show unmute icon
+                if (mIsMuted[channelIndex]) {
+                    // Channel is muted, show unmute icon
                     Drawable unmuteIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_unmute);
                     if (unmuteIcon != null) {
                         unmuteIcon.setBounds(0, 0, dp(16), dp(16));
                         muteBtn.setImageDrawable(unmuteIcon);
+                    }
+                } else {
+                    // Channel is not muted, show mute icon
+                    Drawable muteIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_mute);
+                    if (muteIcon != null) {
+                        muteIcon.setBounds(0, 0, dp(16), dp(16));
+                        muteBtn.setImageDrawable(muteIcon);
                     }
                 }
             }
