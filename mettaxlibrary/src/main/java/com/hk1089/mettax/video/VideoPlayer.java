@@ -429,75 +429,41 @@ public class VideoPlayer {
         for (int i = 0; i < mRealPlays.size(); i++) {
             RealPlay realPlay = mRealPlays.get(i);
             if (realPlay != null) {
-                // Find the play/pause button for this video
-                Button playPauseBtn = mMainLayout.findViewById(2000 + i);
+                // Find the play/pause button for this video using AppCompatImageButton approach
+                AppCompatImageButton playPauseBtn = null;
+                for (AppCompatImageButton button : mGridControlButtons[i]) {
+                    if (button.getId() == 2000 + i) { // Play/pause button ID
+                        playPauseBtn = button;
+                        break;
+                    }
+                }
+                
                 if (playPauseBtn != null) {
-                    try {
-                        Resources resources = mActivity.getResources();
-                        if (realPlay.isViewing()) {
-                            // Video is playing, show pause icon
-                            Drawable pauseIcon = ContextCompat.getDrawable(mActivity,
-                                resources.getIdentifier("ic_pause", "drawable", mActivity.getPackageName()));
-                            if (pauseIcon != null) {
-                                pauseIcon.setBounds(0, 0, 70, 70);
-                                playPauseBtn.setCompoundDrawables(pauseIcon, null, null, null);
-                            } else {
-                                playPauseBtn.setText("⏸");
-                            }
-                        } else {
-                            // Video is not playing, show play icon
-                            Drawable playIcon = ContextCompat.getDrawable(mActivity,
-                                resources.getIdentifier("ic_play", "drawable", mActivity.getPackageName()));
-                            if (playIcon != null) {
-                                playIcon.setBounds(0, 0, 70, 70);
-                                playPauseBtn.setCompoundDrawables(playIcon, null, null, null);
-                            } else {
-                                playPauseBtn.setText("▶");
-                            }
-                        }
-                    } catch (Exception e) {
-                        // Fallback to text
-                        if (realPlay.isViewing()) {
-                            playPauseBtn.setText("⏸");
-                        } else {
-                            playPauseBtn.setText("▶");
-                        }
+                    if (realPlay.isViewing()) {
+                        // Video is playing, show pause icon
+                        playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
+                    } else {
+                        // Video is not playing, show play icon
+                        playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
                     }
                 }
 
-                // Update mute/unmute button state
-                Button muteBtn = mMainLayout.findViewById(3000 + i);
+                // Find the mute/unmute button for this video using AppCompatImageButton approach
+                AppCompatImageButton muteBtn = null;
+                for (AppCompatImageButton button : mGridControlButtons[i]) {
+                    if (button.getId() == 3000 + i) { // Mute button ID
+                        muteBtn = button;
+                        break;
+                    }
+                }
+                
                 if (muteBtn != null) {
-                    try {
-                        Resources resources = mActivity.getResources();
-                        if (mIsMuted[i]) {
-                            // Muted state, show mute icon
-                            Drawable muteIcon = ContextCompat.getDrawable(mActivity,
-                                resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
-                            if (muteIcon != null) {
-                                muteIcon.setBounds(0, 0, 70, 70);
-                                muteBtn.setCompoundDrawables(muteIcon, null, null, null);
-                            } else {
-                                muteBtn.setText("🔇");
-                            }
-                        } else {
-                            // Unmuted state, show unmute icon
-                            Drawable unmuteIcon = ContextCompat.getDrawable(mActivity,
-                                resources.getIdentifier("ic_unmute", "drawable", mActivity.getPackageName()));
-                            if (unmuteIcon != null) {
-                                unmuteIcon.setBounds(0, 0, 70, 70);
-                                muteBtn.setCompoundDrawables(unmuteIcon, null, null, null);
-                            } else {
-                                muteBtn.setText("🔊");
-                            }
-                        }
-                    } catch (Exception e) {
-                        // Fallback to text
-                        if (mIsMuted[i]) {
-                            muteBtn.setText("🔇");
-                        } else {
-                            muteBtn.setText("🔊");
-                        }
+                    if (mIsMuted[i]) {
+                        // Muted state, show mute icon
+                        muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
+                    } else {
+                        // Unmuted state, show unmute icon
+                        muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
                     }
                 }
             }
