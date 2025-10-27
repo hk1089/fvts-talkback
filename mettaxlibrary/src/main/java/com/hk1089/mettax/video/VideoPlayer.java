@@ -79,6 +79,10 @@ public class VideoPlayer {
     private boolean mControlsVisible = true;
     private android.os.Handler mControlsHandler = new android.os.Handler();
     private Runnable mHideControlsRunnable;
+    
+    // Fullscreen loading and placeholder components
+    private android.widget.ProgressBar mFullscreenLoadingIndicator;
+    private android.widget.ImageView mFullscreenPausePlaceholder;
 
     // Listeners
     private VideoPlayerListener mVideoPlayerListener;
@@ -269,18 +273,85 @@ public class VideoPlayer {
         pausePlaceholder.setId(7000 + videoIndex); // Unique ID for pause placeholder
         
         RelativeLayout.LayoutParams placeholderParams = new RelativeLayout.LayoutParams(
-                dp(100), dp(100));
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT);
         placeholderParams.addRule(RelativeLayout.CENTER_IN_PARENT);
         pausePlaceholder.setLayoutParams(placeholderParams);
         
-        // Set pause icon
-        pausePlaceholder.setImageDrawable(ContextCompat.getDrawable(mActivity, R.drawable.ic_pause_placeholder));
+        // Set placeholder image
+        pausePlaceholder.setImageDrawable(ContextCompat.getDrawable(mActivity, R.drawable.placeholder));
+        pausePlaceholder.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
         
         // Initially hidden (video is playing)
         pausePlaceholder.setVisibility(android.view.View.GONE);
         
         container.addView(pausePlaceholder);
         mPausePlaceholders[videoIndex] = pausePlaceholder;
+    }
+
+    private void createFullscreenLoadingIndicator() {
+        // Create fullscreen loading indicator
+        mFullscreenLoadingIndicator = new android.widget.ProgressBar(mActivity);
+        
+        android.widget.FrameLayout.LayoutParams loadingParams = new android.widget.FrameLayout.LayoutParams(
+                dp(60), dp(60));
+        loadingParams.gravity = android.view.Gravity.CENTER;
+        mFullscreenLoadingIndicator.setLayoutParams(loadingParams);
+        
+        // Set custom drawable for loading animation
+        mFullscreenLoadingIndicator.setIndeterminateDrawable(ContextCompat.getDrawable(mActivity, R.drawable.ic_loading));
+        
+        // Initially visible (video is loading)
+        mFullscreenLoadingIndicator.setVisibility(android.view.View.VISIBLE);
+        
+        mFullscreenLayout.addView(mFullscreenLoadingIndicator);
+    }
+
+    private void createFullscreenPausePlaceholder() {
+        // Create fullscreen pause placeholder
+        mFullscreenPausePlaceholder = new android.widget.ImageView(mActivity);
+        
+        // Use FrameLayout layout params to cover entire fullscreen area
+        android.widget.FrameLayout.LayoutParams placeholderParams = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT);
+        placeholderParams.gravity = android.view.Gravity.CENTER;
+        mFullscreenPausePlaceholder.setLayoutParams(placeholderParams);
+        
+        // Set placeholder image
+        mFullscreenPausePlaceholder.setImageDrawable(ContextCompat.getDrawable(mActivity, R.drawable.placeholder));
+        mFullscreenPausePlaceholder.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        
+        // Rotate placeholder for fullscreen (landscape orientation)
+        mFullscreenPausePlaceholder.setRotation(90f);
+        
+        // Set background to black to cover any letterboxed areas
+        mFullscreenPausePlaceholder.setBackgroundColor(android.graphics.Color.BLACK);
+        
+        // Make placeholder non-clickable so touch events pass through to video view
+        mFullscreenPausePlaceholder.setClickable(false);
+        mFullscreenPausePlaceholder.setFocusable(false);
+        
+        // Add touch listener to forward touch events to video view for controls toggle
+        mFullscreenPausePlaceholder.setOnTouchListener(new android.view.View.OnTouchListener() {
+            @Override
+            public boolean onTouch(android.view.View v, android.view.MotionEvent event) {
+                // Forward touch events to the video view to trigger controls toggle
+                if (mFullscreenVideoView != null) {
+                    return mFullscreenVideoView.dispatchTouchEvent(event);
+                }
+                return false;
+            }
+        });
+        
+        // Set lower elevation than controls so controls appear above placeholder
+        mFullscreenPausePlaceholder.setElevation(500f);
+        
+        // Initially hidden (video is playing)
+        mFullscreenPausePlaceholder.setVisibility(android.view.View.GONE);
+        
+        // Add to fullscreen layout (same level as video view)
+        mFullscreenLayout.addView(mFullscreenPausePlaceholder);
     }
 
     private void createControlButtons(RelativeLayout container, int videoIndex) {
@@ -578,6 +649,22 @@ public class VideoPlayer {
         mIsLoading[channelIndex] = isLoading;
         
         Log.d("VideoPlayer", "Channel " + channelIndex + " - Loading: " + isLoading + ", Paused: " + isPaused);
+    }
+
+    private void updateFullscreenLoadingAndPlaceholder(boolean isLoading, boolean isPaused) {
+        // Update fullscreen loading indicator
+        if (mFullscreenLoadingIndicator != null) {
+            mFullscreenLoadingIndicator.setVisibility(
+                isLoading ? android.view.View.VISIBLE : android.view.View.GONE);
+        }
+        
+        // Update fullscreen pause placeholder
+        if (mFullscreenPausePlaceholder != null) {
+            mFullscreenPausePlaceholder.setVisibility(
+                isPaused ? android.view.View.VISIBLE : android.view.View.GONE);
+        }
+        
+        Log.d("VideoPlayer", "Fullscreen - Loading: " + isLoading + ", Paused: " + isPaused);
     }
 
     // Audio control methods
@@ -970,6 +1057,13 @@ public class VideoPlayer {
 
         // Add to root fullscreen layout (controls after video so they overlay)
         mFullscreenLayout.addView(mFullscreenVideoView);
+        
+        // Create fullscreen loading indicator
+        createFullscreenLoadingIndicator();
+        
+        // Create fullscreen pause placeholder
+        createFullscreenPausePlaceholder();
+        
         mFullscreenLayout.addView(mFullscreenControlsLayout);
 
         // Make sure controls are actually above the video
@@ -1032,7 +1126,12 @@ public class VideoPlayer {
             VideoView originalVideoView = mVideoViews.get(mFullscreenChannel);
             mFullscreenRealPlay.setVideoView(originalVideoView);
 
-            Log.d("VideoPlayer", "Transferred video stream back to original view for channel " + mFullscreenChannel);
+            // Update grid placeholder state based on current video state
+            boolean isVideoPlaying = mFullscreenRealPlay.isViewing();
+            updateLoadingAndPlaceholder(mFullscreenChannel, false, !isVideoPlaying);
+
+            Log.d("VideoPlayer", "Transferred video stream back to original view for channel " + mFullscreenChannel + 
+                  ", video playing: " + isVideoPlaying);
         }
 
         mFullscreenRealPlay = null;
@@ -1043,9 +1142,20 @@ public class VideoPlayer {
             if (mFullscreenRealPlay.isViewing()) {
                 mFullscreenRealPlay.StopAV();
                 mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
+                // Show pause placeholder, hide loading indicator
+                updateFullscreenLoadingAndPlaceholder(false, true);
             } else {
                 mFullscreenRealPlay.StartAV(false, true);
                 mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
+                // Show loading indicator while starting
+                updateFullscreenLoadingAndPlaceholder(true, false);
+                
+                // Hide loading indicator after a short delay
+                mControlsHandler.postDelayed(() -> {
+                    if (mFullscreenRealPlay.isViewing()) {
+                        updateFullscreenLoadingAndPlaceholder(false, false);
+                    }
+                }, 1000);
             }
             
             // Also update the corresponding grid player button
@@ -1073,8 +1183,12 @@ public class VideoPlayer {
             // Update play/pause button
             if (mFullscreenRealPlay.isViewing()) {
                 mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
+                // Hide loading indicator and pause placeholder
+                updateFullscreenLoadingAndPlaceholder(false, false);
             } else {
                 mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
+                // Show pause placeholder, hide loading indicator
+                updateFullscreenLoadingAndPlaceholder(false, true);
             }
 
             // Update mute button
@@ -1228,21 +1342,44 @@ public class VideoPlayer {
             android.content.Intent shareIntent = new android.content.Intent(android.content.Intent.ACTION_SEND);
             shareIntent.setType("image/png");
 
-            // Get URI for the file
-            android.net.Uri fileUri = androidx.core.content.FileProvider.getUriForFile(
-                mActivity,
-                mActivity.getPackageName() + ".fileprovider",
-                snapshotFile
-            );
-
-            shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, fileUri);
-            shareIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            // Try to get URI using FileProvider first
+            android.net.Uri fileUri;
+            try {
+                fileUri = androidx.core.content.FileProvider.getUriForFile(
+                    mActivity,
+                    mActivity.getPackageName() + ".fileprovider",
+                    snapshotFile
+                );
+                shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, fileUri);
+                shareIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (Exception fileProviderException) {
+                Log.w("VideoPlayer", "FileProvider not found, trying alternative method: " + fileProviderException.getMessage());
+                
+                // Fallback: Try to use file:// URI (may not work on newer Android versions)
+                try {
+                    fileUri = android.net.Uri.fromFile(snapshotFile);
+                    shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, fileUri);
+                } catch (Exception fallbackException) {
+                    Log.e("VideoPlayer", "Both FileProvider and file:// URI failed: " + fallbackException.getMessage());
+                    showSnapError("Cannot share snapshot. Please add FileProvider configuration to your app's AndroidManifest.xml:\n\n" +
+                        "<provider\n" +
+                        "    android:name=\"androidx.core.content.FileProvider\"\n" +
+                        "    android:authorities=\"${applicationId}.fileprovider\"\n" +
+                        "    android:exported=\"false\"\n" +
+                        "    android:grantUriPermissions=\"true\">\n" +
+                        "    <meta-data\n" +
+                        "        android:name=\"android.support.FILE_PROVIDER_PATHS\"\n" +
+                        "        android:resource=\"@xml/file_paths\" />\n" +
+                        "</provider>");
+                    return;
+                }
+            }
 
             mActivity.startActivity(android.content.Intent.createChooser(shareIntent, "Share Snapshot"));
 
         } catch (Exception e) {
             Log.e("VideoPlayer", "Error sharing snapshot: " + e.getMessage());
-            showSnapError("Error sharing "+ e.getMessage());
+            showSnapError("Error sharing: " + e.getMessage());
         }
     }
 
