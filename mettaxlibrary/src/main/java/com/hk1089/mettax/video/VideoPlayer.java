@@ -478,7 +478,7 @@ public class VideoPlayer {
                 realPlay.playSound();
                 Log.d("VideoPlayer", "Started audio for channel " + channelIndex);
                 // Update button state
-                updateMuteButtonState(channelIndex);
+                updateButtonStates();
                 if (mVideoPlayerListener != null) {
                     mVideoPlayerListener.onVideoAudioStart(mVideoViews.get(channelIndex), channelIndex);
                 }
@@ -493,7 +493,7 @@ public class VideoPlayer {
                 realPlay.stopSound();
                 Log.d("VideoPlayer", "Stopped audio for channel " + channelIndex);
                 // Update button state
-                updateMuteButtonState(channelIndex);
+                updateButtonStates();
                 if (mVideoPlayerListener != null) {
                     mVideoPlayerListener.onVideoAudioStop(mVideoViews.get(channelIndex), channelIndex);
                 }
@@ -510,88 +510,7 @@ public class VideoPlayer {
         Log.d("VideoPlayer", "Stopped all audio");
     }
 
-    // Recording control methods
-    public void startRecord(int channelIndex) {
-        if (channelIndex >= 0 && channelIndex < mRealPlays.size()) {
-            RealPlay realPlay = mRealPlays.get(channelIndex);
-            if (realPlay != null) {
-                boolean success = realPlay.startRecord();
-                Log.d("VideoPlayer", "Started recording for channel " + channelIndex + ": " + success);
-            }
-        }
-    }
 
-    public void stopRecord(int channelIndex) {
-        if (channelIndex >= 0 && channelIndex < mRealPlays.size()) {
-            RealPlay realPlay = mRealPlays.get(channelIndex);
-            if (realPlay != null) {
-                boolean success = realPlay.stopRecord();
-                Log.d("VideoPlayer", "Stopped recording for channel " + channelIndex + ": " + success);
-            }
-        }
-    }
-
-    public void stopAllRecord() {
-        for (RealPlay realPlay : mRealPlays) {
-            if (realPlay != null) {
-                realPlay.stopRecord();
-            }
-        }
-        Log.d("VideoPlayer", "Stopped all recording");
-    }
-
-    // Snapshot methods
-    public boolean takeSnapshot(int channelIndex) {
-        if (channelIndex >= 0 && channelIndex < mRealPlays.size()) {
-            RealPlay realPlay = mRealPlays.get(channelIndex);
-            if (realPlay != null) {
-                boolean success = realPlay.savePngFile();
-                Log.d("VideoPlayer", "Snapshot for channel " + channelIndex + ": " + success);
-                return success;
-            }
-        }
-        return false;
-    }
-
-    // PTZ control methods
-    public void ptzControl(int channelIndex, int command, int param) {
-        if (channelIndex >= 0 && channelIndex < mRealPlays.size()) {
-            RealPlay realPlay = mRealPlays.get(channelIndex);
-            if (realPlay != null) {
-                realPlay.ptzControl(command, param);
-                Log.d("VideoPlayer", "PTZ control for channel " + channelIndex + " command: " + command);
-            }
-        }
-    }
-
-    // Convenience PTZ methods
-    public void ptzMoveLeft(int channelIndex) {
-        ptzControl(channelIndex, 0, 0); // GPS_PTZ_MOVE_LEFT
-    }
-
-    public void ptzMoveRight(int channelIndex) {
-        ptzControl(channelIndex, 1, 0); // GPS_PTZ_MOVE_RIGHT
-    }
-
-    public void ptzMoveUp(int channelIndex) {
-        ptzControl(channelIndex, 2, 0); // GPS_PTZ_MOVE_TOP
-    }
-
-    public void ptzMoveDown(int channelIndex) {
-        ptzControl(channelIndex, 3, 0); // GPS_PTZ_MOVE_BOTTOM
-    }
-
-    public void ptzZoomIn(int channelIndex) {
-        ptzControl(channelIndex, 12, 0); // GPS_PTZ_ZOOM_ADD
-    }
-
-    public void ptzZoomOut(int channelIndex) {
-        ptzControl(channelIndex, 13, 0); // GPS_PTZ_ZOOM_DEL
-    }
-
-    public void ptzStop(int channelIndex) {
-        ptzControl(channelIndex, 19, 0); // GPS_PTZ_MOVE_STOP
-    }
 
     // Helper method to mute all channels except the specified one
     private void muteAllOtherChannels(int excludeChannel) {
@@ -625,45 +544,6 @@ public class VideoPlayer {
         }
     }
 
-    // Helper method to update mute button state for a specific channel
-    private void updateMuteButtonState(int channelIndex) {
-        if (channelIndex >= 0 && channelIndex < mRealPlays.size()) {
-            Button muteBtn = mMainLayout.findViewById(3000 + channelIndex);
-            if (muteBtn != null) {
-                try {
-                    Resources resources = mActivity.getResources();
-                    if (mIsMuted[channelIndex]) {
-                        // Muted state, show mute icon
-                        Drawable muteIcon = ContextCompat.getDrawable(mActivity,
-                            resources.getIdentifier("ic_mute", "drawable", mActivity.getPackageName()));
-                        if (muteIcon != null) {
-                            muteIcon.setBounds(0, 0, 70, 70);
-                            muteBtn.setCompoundDrawables(muteIcon, null, null, null);
-                        } else {
-                            muteBtn.setText("🔇");
-                        }
-                    } else {
-                        // Unmuted state, show unmute icon
-                        Drawable unmuteIcon = ContextCompat.getDrawable(mActivity,
-                            resources.getIdentifier("ic_unmute", "drawable", mActivity.getPackageName()));
-                        if (unmuteIcon != null) {
-                            unmuteIcon.setBounds(0, 0, 70, 70);
-                            muteBtn.setCompoundDrawables(unmuteIcon, null, null, null);
-                        } else {
-                            muteBtn.setText("🔊");
-                        }
-                    }
-                } catch (Exception e) {
-                    // Fallback to text
-                    if (mIsMuted[channelIndex]) {
-                        muteBtn.setText("🔇");
-                    } else {
-                        muteBtn.setText("🔊");
-                    }
-                }
-            }
-        }
-    }
 
     public boolean isPlaying() {
         return mIsPlaying;
@@ -1575,14 +1455,6 @@ public class VideoPlayer {
         mGridControlsHandler.postDelayed(mGridHideControlsRunnable[channelIndex], 5000);
     }
     
-    private void stopGridAutoHideTimer(int channelIndex) {
-        if (channelIndex < 0 || channelIndex >= mChannelCount) return;
-        
-        if (mGridHideControlsRunnable[channelIndex] != null) {
-            mGridControlsHandler.removeCallbacks(mGridHideControlsRunnable[channelIndex]);
-            mGridHideControlsRunnable[channelIndex] = null;
-        }
-    }
     
     private void updateGridPlayerButton(int channelIndex) {
         if (channelIndex < 0 || channelIndex >= mChannelCount) return;
@@ -1686,25 +1558,4 @@ public class VideoPlayer {
             });
     }
     
-    private void animateFullscreenExit() {
-        if (mFullscreenLayout == null) return;
-        
-        // Animate to scale 0 and alpha 0
-        mFullscreenLayout.animate()
-            .scaleX(0.0f)
-            .scaleY(0.0f)
-            .alpha(0.0f)
-            .setDuration(250)
-            .setInterpolator(new android.view.animation.AccelerateInterpolator())
-            .setListener(new android.animation.AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(android.animation.Animator animation) {
-                    Log.d("VideoPlayer", "Fullscreen exit animation completed");
-                    // Reset scale and alpha for next use
-                    mFullscreenLayout.setScaleX(1.0f);
-                    mFullscreenLayout.setScaleY(1.0f);
-                    mFullscreenLayout.setAlpha(1.0f);
-                }
-            });
-    }
 }

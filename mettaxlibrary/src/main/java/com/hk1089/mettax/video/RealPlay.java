@@ -57,8 +57,8 @@ public class RealPlay extends UpdateThread implements AudioPlay.AudioReader, Vid
 	private int mIsUser = 0; // 0 使用 1 禁用
 	public RealPlay(Context context) {
 		mContext = context;
-		RECORD_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES) + "/" + RECORD_DIRECTORY;
-		SNAPSHOT_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + SNAPSHOT_DIRECTORY;
+		RECORD_PATH = context.getFilesDir() + "/" + RECORD_DIRECTORY;
+		SNAPSHOT_PATH = context.getFilesDir() + "/" + SNAPSHOT_DIRECTORY;
 	}
 	
 
