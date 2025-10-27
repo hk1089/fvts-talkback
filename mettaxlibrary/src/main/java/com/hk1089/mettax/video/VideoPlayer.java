@@ -249,7 +249,7 @@ public class VideoPlayer {
         loadingIndicator.setId(5000 + videoIndex); // Unique ID for loading indicator
         
         RelativeLayout.LayoutParams loadingParams = new RelativeLayout.LayoutParams(
-                dp(40), dp(40));
+                dp(30), dp(30));
         loadingParams.addRule(RelativeLayout.CENTER_IN_PARENT);
         loadingIndicator.setLayoutParams(loadingParams);
         
@@ -269,7 +269,7 @@ public class VideoPlayer {
         pausePlaceholder.setId(7000 + videoIndex); // Unique ID for pause placeholder
         
         RelativeLayout.LayoutParams placeholderParams = new RelativeLayout.LayoutParams(
-                dp(80), dp(80));
+                dp(100), dp(100));
         placeholderParams.addRule(RelativeLayout.CENTER_IN_PARENT);
         pausePlaceholder.setLayoutParams(placeholderParams);
         
@@ -458,8 +458,8 @@ public class VideoPlayer {
         mIsPlaying = true;
         Log.d("VideoPlayer", "Video started successfully");
 
-        // Update button states after starting videos
-        updateButtonStates();
+        // Don't update button states immediately - let loading indicators show first
+        // updateButtonStates();
         
         // Hide loading indicators after a delay (simulate loading time)
         mGridControlsHandler.postDelayed(() -> {
@@ -469,6 +469,8 @@ public class VideoPlayer {
                     updateLoadingAndPlaceholder(i, false, false);
                 }
             }
+            // Now update button states after loading is complete
+            updateButtonStates();
         }, 2000);
     }
 
@@ -1240,7 +1242,7 @@ public class VideoPlayer {
 
         } catch (Exception e) {
             Log.e("VideoPlayer", "Error sharing snapshot: " + e.getMessage());
-            showSnapError("Error sharing snapshot");
+            showSnapError("Error sharing "+ e.getMessage());
         }
     }
 

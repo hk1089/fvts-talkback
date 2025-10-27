@@ -6,7 +6,7 @@
             android:innerRadiusRatio="3"
             android:thicknessRatio="8"
             android:useLevel="false">
-            <solid android:color="#80FFFFFF" />
+            <solid android:color="#80000000" />
         </shape>
     </item>
     <item android:duration="200">
@@ -14,7 +14,7 @@
             android:innerRadiusRatio="3"
             android:thicknessRatio="8"
             android:useLevel="false">
-            <solid android:color="#40FFFFFF" />
+            <solid android:color="#40000000" />
         </shape>
     </item>
     <item android:duration="200">
@@ -22,7 +22,7 @@
             android:innerRadiusRatio="3"
             android:thicknessRatio="8"
             android:useLevel="false">
-            <solid android:color="#20FFFFFF" />
+            <solid android:color="#20000000" />
         </shape>
     </item>
     <item android:duration="200">
@@ -30,7 +30,7 @@
             android:innerRadiusRatio="3"
             android:thicknessRatio="8"
             android:useLevel="false">
-            <solid android:color="#10FFFFFF" />
+            <solid android:color="#10000000" />
         </shape>
     </item>
 </animation-list>
