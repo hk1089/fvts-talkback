@@ -1,20 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- External files directory for snapshots -->
-    <external-files-path 
-        name="snapshots" 
-        path="snapshots/" />
-    
-    <!-- External files directory for recordings -->
-    <external-files-path 
-        name="recordings" 
-        path="recordings/" />
-    
-    <!-- External files directory for general files -->
-    <external-files-path 
-        name="external_files" 
-        path="." />
-    
     <!-- Cache directory -->
     <cache-path 
         name="cache" 
