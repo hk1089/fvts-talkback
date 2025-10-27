@@ -1130,8 +1130,13 @@ public class VideoPlayer {
             boolean isVideoPlaying = mFullscreenRealPlay.isViewing();
             updateLoadingAndPlaceholder(mFullscreenChannel, false, !isVideoPlaying);
 
+            // Update grid mute state based on current audio state
+            boolean isAudioPlaying = mFullscreenRealPlay.isSounding();
+            mIsMuted[mFullscreenChannel] = !isAudioPlaying;
+            updateGridPlayerMuteButton(mFullscreenChannel);
+
             Log.d("VideoPlayer", "Transferred video stream back to original view for channel " + mFullscreenChannel + 
-                  ", video playing: " + isVideoPlaying);
+                  ", video playing: " + isVideoPlaying + ", audio playing: " + isAudioPlaying);
         }
 
         mFullscreenRealPlay = null;
