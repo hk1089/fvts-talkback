@@ -1130,13 +1130,12 @@ public class VideoPlayer {
             boolean isVideoPlaying = mFullscreenRealPlay.isViewing();
             updateLoadingAndPlaceholder(mFullscreenChannel, false, !isVideoPlaying);
 
-            // Update grid mute state based on current audio state
-            boolean isAudioPlaying = mFullscreenRealPlay.isSounding();
-            mIsMuted[mFullscreenChannel] = !isAudioPlaying;
+            // Don't update mute state here - let it remain as it was
+            // The mute state should only change when user explicitly clicks mute/unmute buttons
             updateGridPlayerMuteButton(mFullscreenChannel);
 
             Log.d("VideoPlayer", "Transferred video stream back to original view for channel " + mFullscreenChannel + 
-                  ", video playing: " + isVideoPlaying + ", audio playing: " + isAudioPlaying);
+                  ", video playing: " + isVideoPlaying);
         }
 
         mFullscreenRealPlay = null;
@@ -1169,16 +1168,27 @@ public class VideoPlayer {
     }
 
     private void toggleFullscreenMute() {
-        if (mFullscreenRealPlay != null) {
-            if (mFullscreenRealPlay.isSounding()) {
-                mFullscreenRealPlay.stopSound();
-                mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
-            } else {
+        if (mFullscreenRealPlay != null && mFullscreenChannel >= 0 && mFullscreenChannel < mIsMuted.length) {
+            boolean currentlyMuted = mIsMuted[mFullscreenChannel];
+
+            if (currentlyMuted) {
+                // Currently muted → unmute it
+                muteAllOtherChannels(mFullscreenChannel);
                 mFullscreenRealPlay.playSound();
+                mIsMuted[mFullscreenChannel] = false; // sync mute state
                 mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
+                if (mVideoPlayerListener != null)
+                    mVideoPlayerListener.onVideoAudioStart(mFullscreenVideoView, mFullscreenChannel);
+            } else {
+                // Currently unmuted → mute it
+                mFullscreenRealPlay.stopSound();
+                mIsMuted[mFullscreenChannel] = true; // sync mute state
+                mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
+                if (mVideoPlayerListener != null)
+                    mVideoPlayerListener.onVideoAudioStop(mFullscreenVideoView, mFullscreenChannel);
             }
-            
-            // Also update the corresponding grid player mute button
+
+            // Always update grid icon to match
             updateGridPlayerMuteButton(mFullscreenChannel);
         }
     }
@@ -1196,11 +1206,15 @@ public class VideoPlayer {
                 updateFullscreenLoadingAndPlaceholder(false, true);
             }
 
-            // Update mute button
-            if (mFullscreenRealPlay.isSounding()) {
-                mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
-            } else {
-                mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
+            // Update mute button based on current mute state (not audio state)
+            if (mFullscreenChannel >= 0 && mFullscreenChannel < mIsMuted.length) {
+                if (mIsMuted[mFullscreenChannel]) {
+                    // Channel is muted, show mute icon
+                    mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
+                } else {
+                    // Channel is not muted, show unmute icon
+                    mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
+                }
             }
         }
     }
@@ -1347,7 +1361,7 @@ public class VideoPlayer {
             android.content.Intent shareIntent = new android.content.Intent(android.content.Intent.ACTION_SEND);
             shareIntent.setType("image/png");
 
-            // Try to get URI using FileProvider first
+            // Use FileProvider to get secure URI (required for sharing on modern Android)
             android.net.Uri fileUri;
             try {
                 fileUri = androidx.core.content.FileProvider.getUriForFile(
@@ -1357,30 +1371,29 @@ public class VideoPlayer {
                 );
                 shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, fileUri);
                 shareIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (Exception fileProviderException) {
-                Log.w("VideoPlayer", "FileProvider not found, trying alternative method: " + fileProviderException.getMessage());
                 
-                // Fallback: Try to use file:// URI (may not work on newer Android versions)
-                try {
-                    fileUri = android.net.Uri.fromFile(snapshotFile);
-                    shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, fileUri);
-                } catch (Exception fallbackException) {
-                    Log.e("VideoPlayer", "Both FileProvider and file:// URI failed: " + fallbackException.getMessage());
-                    showSnapError("Cannot share snapshot. Please add FileProvider configuration to your app's AndroidManifest.xml:\n\n" +
-                        "<provider\n" +
-                        "    android:name=\"androidx.core.content.FileProvider\"\n" +
-                        "    android:authorities=\"${applicationId}.fileprovider\"\n" +
-                        "    android:exported=\"false\"\n" +
-                        "    android:grantUriPermissions=\"true\">\n" +
-                        "    <meta-data\n" +
-                        "        android:name=\"android.support.FILE_PROVIDER_PATHS\"\n" +
-                        "        android:resource=\"@xml/file_paths\" />\n" +
-                        "</provider>");
-                    return;
-                }
+                mActivity.startActivity(android.content.Intent.createChooser(shareIntent, "Share Snapshot"));
+                
+            } catch (Exception fileProviderException) {
+                Log.e("VideoPlayer", "FileProvider not configured: " + fileProviderException.getMessage());
+                showSnapError("Cannot share snapshot. FileProvider is not configured in your app.\n\n" +
+                    "Please add this to your AndroidManifest.xml:\n\n" +
+                    "<provider\n" +
+                    "    android:name=\"androidx.core.content.FileProvider\"\n" +
+                    "    android:authorities=\"${applicationId}.fileprovider\"\n" +
+                    "    android:exported=\"false\"\n" +
+                    "    android:grantUriPermissions=\"true\">\n" +
+                    "    <meta-data\n" +
+                    "        android:name=\"android.support.FILE_PROVIDER_PATHS\"\n" +
+                    "        android:resource=\"@xml/file_paths\" />\n" +
+                    "</provider>\n\n" +
+                    "And create res/xml/file_paths.xml:\n\n" +
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+                    "<paths xmlns:android=\"http://schemas.android.com/apk/res/android\">\n" +
+                    "    <cache-path name=\"cache\" path=\".\" />\n" +
+                    "    <files-path name=\"internal_files\" path=\".\" />\n" +
+                    "</paths>");
             }
-
-            mActivity.startActivity(android.content.Intent.createChooser(shareIntent, "Share Snapshot"));
 
         } catch (Exception e) {
             Log.e("VideoPlayer", "Error sharing snapshot: " + e.getMessage());
@@ -1742,46 +1755,34 @@ public class VideoPlayer {
             Log.e("VideoPlayer", "Error updating grid player button: " + e.getMessage());
         }
     }
-    
+
     private void updateGridPlayerMuteButton(int channelIndex) {
         if (channelIndex < 0 || channelIndex >= mChannelCount) return;
-        
+
         try {
-            RealPlay realPlay = mRealPlays.get(channelIndex);
-            if (realPlay == null) return;
-            
-            // Find the mute button for this channel
             AppCompatImageButton muteBtn = null;
             for (AppCompatImageButton button : mGridControlButtons[channelIndex]) {
-                if (button.getId() == 3000 + channelIndex) { // Mute button ID
+                if (button.getId() == 3000 + channelIndex) {
                     muteBtn = button;
                     break;
                 }
             }
-            
+
             if (muteBtn != null) {
-                Resources resources = mActivity.getResources();
                 if (mIsMuted[channelIndex]) {
-                    // Channel is muted, show unmute icon
-                    Drawable unmuteIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_unmute);
-                    if (unmuteIcon != null) {
-                        unmuteIcon.setBounds(0, 0, dp(16), dp(16));
-                        muteBtn.setImageDrawable(unmuteIcon);
-                    }
+                    // Channel is muted → show mute icon
+                    muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
                 } else {
-                    // Channel is not muted, show mute icon
-                    Drawable muteIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_mute);
-                    if (muteIcon != null) {
-                        muteIcon.setBounds(0, 0, dp(16), dp(16));
-                        muteBtn.setImageDrawable(muteIcon);
-                    }
+                    // Channel is unmuted → show unmute icon
+                    muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
                 }
             }
         } catch (Exception e) {
             Log.e("VideoPlayer", "Error updating grid player mute button: " + e.getMessage());
         }
     }
-    
+
+
     // Fullscreen animation methods
     private void animateFullscreenEntry() {
         if (mFullscreenLayout == null) return;
