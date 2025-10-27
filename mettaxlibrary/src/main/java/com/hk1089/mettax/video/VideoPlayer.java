@@ -59,6 +59,11 @@ public class VideoPlayer {
     private android.os.Handler mGridControlsHandler = new android.os.Handler();
     private Runnable[] mGridHideControlsRunnable; // Auto-hide runnables for each channel
     private List<AppCompatImageButton>[] mGridControlButtons; // Store references to control buttons for each channel
+    
+    // Loading and placeholder components
+    private android.widget.ProgressBar[] mLoadingIndicators; // Loading indicators for each channel
+    private android.widget.ImageView[] mPausePlaceholders; // Pause placeholders for each channel
+    private boolean[] mIsLoading; // Track loading state for each channel
 
     // Fullscreen components
     private boolean mIsFullscreen = false;
@@ -93,6 +98,11 @@ public class VideoPlayer {
         mGridControlsVisible = new boolean[channelCount];
         mGridHideControlsRunnable = new Runnable[channelCount];
         mGridControlButtons = new List[channelCount];
+        
+        // Initialize loading and placeholder components
+        mLoadingIndicators = new android.widget.ProgressBar[channelCount];
+        mPausePlaceholders = new android.widget.ImageView[channelCount];
+        mIsLoading = new boolean[channelCount];
 
         // Initialize all channels as muted and controls visible
         for (int i = 0; i < channelCount; i++) {
@@ -100,6 +110,7 @@ public class VideoPlayer {
             mGridControlsVisible[i] = true; // Start with controls visible
             mGridHideControlsRunnable[i] = null;
             mGridControlButtons[i] = new ArrayList<>();
+            mIsLoading[i] = true; // All channels start in loading state
         }
 
         initializeComponents();
@@ -163,6 +174,13 @@ public class VideoPlayer {
             });
 
             cell.addView(videoView);
+            
+            // Create loading indicator
+            createLoadingIndicator(cell, channelIndex);
+            
+            // Create pause placeholder
+            createPausePlaceholder(cell, channelIndex);
+            
             createControlButtons(cell, channelIndex);
 
             mVideoViews.add(videoView);
@@ -225,6 +243,45 @@ public class VideoPlayer {
         return b;
     }
 
+    private void createLoadingIndicator(RelativeLayout container, int videoIndex) {
+        // Create loading indicator
+        android.widget.ProgressBar loadingIndicator = new android.widget.ProgressBar(mActivity);
+        loadingIndicator.setId(5000 + videoIndex); // Unique ID for loading indicator
+        
+        RelativeLayout.LayoutParams loadingParams = new RelativeLayout.LayoutParams(
+                dp(40), dp(40));
+        loadingParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+        loadingIndicator.setLayoutParams(loadingParams);
+        
+        // Set custom drawable for loading animation
+        loadingIndicator.setIndeterminateDrawable(ContextCompat.getDrawable(mActivity, R.drawable.ic_loading));
+        
+        // Initially visible (video is loading)
+        loadingIndicator.setVisibility(android.view.View.VISIBLE);
+        
+        container.addView(loadingIndicator);
+        mLoadingIndicators[videoIndex] = loadingIndicator;
+    }
+
+    private void createPausePlaceholder(RelativeLayout container, int videoIndex) {
+        // Create pause placeholder
+        android.widget.ImageView pausePlaceholder = new android.widget.ImageView(mActivity);
+        pausePlaceholder.setId(7000 + videoIndex); // Unique ID for pause placeholder
+        
+        RelativeLayout.LayoutParams placeholderParams = new RelativeLayout.LayoutParams(
+                dp(80), dp(80));
+        placeholderParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+        pausePlaceholder.setLayoutParams(placeholderParams);
+        
+        // Set pause icon
+        pausePlaceholder.setImageDrawable(ContextCompat.getDrawable(mActivity, R.drawable.ic_pause_placeholder));
+        
+        // Initially hidden (video is playing)
+        pausePlaceholder.setVisibility(android.view.View.GONE);
+        
+        container.addView(pausePlaceholder);
+        mPausePlaceholders[videoIndex] = pausePlaceholder;
+    }
 
     private void createControlButtons(RelativeLayout container, int videoIndex) {
         // ---- Bottom control bar (equal spacing) ----
@@ -259,9 +316,20 @@ public class VideoPlayer {
             if (rp.isViewing()) {
                 rp.StopAV();
                 playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
+                // Show pause placeholder, hide loading indicator
+                updateLoadingAndPlaceholder(videoIndex, false, true);
             } else {
                 rp.StartAV(false, true);
                 playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
+                // Show loading indicator while starting
+                updateLoadingAndPlaceholder(videoIndex, true, false);
+                
+                // Hide loading indicator after a short delay (simulate loading time)
+                mGridControlsHandler.postDelayed(() -> {
+                    if (rp.isViewing()) {
+                        updateLoadingAndPlaceholder(videoIndex, false, false);
+                    }
+                }, 1000);
             }
             if (mIsFullscreen && mFullscreenChannel == videoIndex) updateFullscreenControls();
         });
@@ -376,6 +444,11 @@ public class VideoPlayer {
 
         Log.d("VideoPlayer", "Starting video for " + mChannelCount + " channels");
 
+        // Show loading indicators for all channels initially
+        for (int i = 0; i < mChannelCount; i++) {
+            updateLoadingAndPlaceholder(i, true, false);
+        }
+
         for (int i = 0; i < mChannelCount; i++) {
             RealPlay realPlay = mRealPlays.get(i);
             realPlay.setViewInfo(mDevIdno, mDevIdno, i, "CH" + (i+1), 0);
@@ -387,6 +460,16 @@ public class VideoPlayer {
 
         // Update button states after starting videos
         updateButtonStates();
+        
+        // Hide loading indicators after a delay (simulate loading time)
+        mGridControlsHandler.postDelayed(() -> {
+            for (int i = 0; i < mChannelCount; i++) {
+                RealPlay realPlay = mRealPlays.get(i);
+                if (realPlay != null && realPlay.isViewing()) {
+                    updateLoadingAndPlaceholder(i, false, false);
+                }
+            }
+        }, 2000);
     }
 
     public void stopVideo() {
@@ -442,9 +525,13 @@ public class VideoPlayer {
                     if (realPlay.isViewing()) {
                         // Video is playing, show pause icon
                         playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
+                        // Hide loading indicator and pause placeholder
+                        updateLoadingAndPlaceholder(i, false, false);
                     } else {
                         // Video is not playing, show play icon
                         playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
+                        // Show pause placeholder, hide loading indicator
+                        updateLoadingAndPlaceholder(i, false, true);
                     }
                 }
 
@@ -468,6 +555,27 @@ public class VideoPlayer {
                 }
             }
         }
+    }
+
+    private void updateLoadingAndPlaceholder(int channelIndex, boolean isLoading, boolean isPaused) {
+        if (channelIndex < 0 || channelIndex >= mChannelCount) return;
+        
+        // Update loading indicator
+        if (mLoadingIndicators[channelIndex] != null) {
+            mLoadingIndicators[channelIndex].setVisibility(
+                isLoading ? android.view.View.VISIBLE : android.view.View.GONE);
+        }
+        
+        // Update pause placeholder
+        if (mPausePlaceholders[channelIndex] != null) {
+            mPausePlaceholders[channelIndex].setVisibility(
+                isPaused ? android.view.View.VISIBLE : android.view.View.GONE);
+        }
+        
+        // Update loading state
+        mIsLoading[channelIndex] = isLoading;
+        
+        Log.d("VideoPlayer", "Channel " + channelIndex + " - Loading: " + isLoading + ", Paused: " + isPaused);
     }
 
     // Audio control methods
