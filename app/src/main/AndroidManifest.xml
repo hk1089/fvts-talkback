@@ -32,6 +32,16 @@
             android:name=".VideoPlayerExampleActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden" />
+        
+        <activity
+            android:name=".PlaybackPlayerExampleActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        
+        <activity
+            android:name="com.hk1089.mettax.video.VideoSearchActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
             
         <!-- FileProvider for sharing snapshots -->
         <provider
