@@ -6,11 +6,8 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.RelativeLayout;
 import android.view.Gravity;
@@ -51,10 +48,6 @@ public class PlaybackPlayer {
     private TextView mTvPlaybackTime;
     private AppCompatImageButton mBtnPlayVideo;
     private Button mBtnSpeed1x;
-    private ListView mLstRecord;
-    private Button mBtnStart;
-    private Button mBtnStop;
-    private TextView mTvStatus;
     
     // Playback components
     private Playback mPlayback;
@@ -73,7 +66,6 @@ public class PlaybackPlayer {
     // Search helper
     private VideoSearchHelper mSearchHelper;
     private List<RecordFile> mFileList = new ArrayList<>();
-    private ArrayAdapter<String> mAdapter;
     
     // Listener
     private PlaybackPlayerListener mListener;
@@ -141,7 +133,6 @@ public class PlaybackPlayer {
                 mActivity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        showSearching();
                         if (mListener != null) {
                             mListener.onSearchStarted();
                         }
@@ -163,13 +154,8 @@ public class PlaybackPlayer {
                     public void run() {
                         mFileList.clear();
                         mFileList.addAll(fileList);
-                        updateSearchResults();
-                        cancelSearch();
                         
-                        if (mFileList.isEmpty()) {
-                            Toast.makeText(mContext, "File is empty", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(mContext, "Found " + mFileList.size() + " files", Toast.LENGTH_SHORT).show();
+                        if (!mFileList.isEmpty()) {
                             Log.d(TAG, "========== SEARCH FINISHED - CALLING playFirstResult() ==========");
                             // Automatically play the first result
                             playFirstResult();
@@ -187,7 +173,6 @@ public class PlaybackPlayer {
                 mActivity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        cancelSearch();
                         Toast.makeText(mContext, "Search Finished", Toast.LENGTH_SHORT).show();
                         if (mListener != null) {
                             mListener.onSearchFailed();
@@ -201,7 +186,7 @@ public class PlaybackPlayer {
                 mActivity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        cancelSearch();
+                        // Search stopped
                     }
                 });
             }
@@ -303,8 +288,9 @@ public class PlaybackPlayer {
             // Main layout
             mMainLayout = new LinearLayout(mActivity);
             mMainLayout.setOrientation(LinearLayout.VERTICAL);
-            mMainLayout.setPadding(dp(0), dp(1), dp(0), dp(1));
-            
+            mMainLayout.setGravity(Gravity.CENTER_VERTICAL);
+          //  mMainLayout.setPadding(dp(0), dp(1), dp(0), dp(1));
+            mMainLayout.setBackgroundColor(Color.BLACK);
             // Video container (RelativeLayout like VideoPlayer)
             RelativeLayout videoContainer = new RelativeLayout(mActivity);
             DisplayMetrics dm = new DisplayMetrics();
@@ -323,17 +309,15 @@ public class PlaybackPlayer {
                 RelativeLayout.LayoutParams videoParams = new RelativeLayout.LayoutParams(
                     RelativeLayout.LayoutParams.MATCH_PARENT,
                     RelativeLayout.LayoutParams.MATCH_PARENT);
+                videoParams.addRule(RelativeLayout.CENTER_VERTICAL);
                 mVideoView.setLayoutParams(videoParams);
                 
                 // Add touch listener to toggle controls visibility
-                mVideoView.setOnTouchListener(new View.OnTouchListener() {
-                    @Override
-                    public boolean onTouch(View v, android.view.MotionEvent event) {
-                        if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
-                            toggleControlsVisibility();
-                        }
-                        return true;
+                mVideoView.setOnTouchListener((v, event) -> {
+                    if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                        toggleControlsVisibility();
                     }
+                    return true;
                 });
                 
                 videoContainer.addView(mVideoView);
@@ -450,113 +434,18 @@ public class PlaybackPlayer {
             startAutoHideTimer();
             mMainLayout.addView(videoContainer);
         
-        // Search button layout
-        LinearLayout buttonLayout = new LinearLayout(mActivity);
-        buttonLayout.setOrientation(LinearLayout.HORIZONTAL);
-        buttonLayout.setPadding(0, 0, 0, 8);
-        
-        // Start button
-        mBtnStart = new Button(mActivity);
-        mBtnStart.setText("Start Search");
-        mBtnStart.setLayoutParams(new LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
-        mBtnStart.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startSearch();
-            }
-        });
-        buttonLayout.addView(mBtnStart);
-        
-        // Stop button
-        mBtnStop = new Button(mActivity);
-        mBtnStop.setText("Stop Search");
-        mBtnStop.setLayoutParams(new LinearLayout.LayoutParams(
-            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
-        mBtnStop.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                stopSearch();
-            }
-        });
-        buttonLayout.addView(mBtnStop);
-        
-        mMainLayout.addView(buttonLayout);
-        
-        // Status text
-        mTvStatus = new TextView(mActivity);
-        mTvStatus.setText("");
-        mTvStatus.setPadding(0, 0, 0, 8);
-        mMainLayout.addView(mTvStatus);
-        
-        // List view
-        mLstRecord = new ListView(mActivity);
-        mLstRecord.setLayoutParams(new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.MATCH_PARENT));
-        mLstRecord.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                try {
-                    if (mFileList == null || position < 0 || position >= mFileList.size()) {
-                        return;
-                    }
-                    
-                    // Play selected video
-                    RecordFile selectedFile = mFileList.get(position);
-                    if (selectedFile == null) {
-                        return;
-                    }
-                    
-                    // Stop current playback if playing
-                    if (mIsPlaying) {
-                        stopPlayback();
-                    }
-                    
-                    // Store playback parameters
-                    mPlaybackFile = selectedFile.getOrginalFile();
-                    mPlaybackLength = selectedFile.getOrginalLen();
-                    mPlaybackChannel = selectedFile.getChn();
-                    mCurrentPlayingFile = selectedFile;
-                    
-                    // Calculate total duration from file's time range
-                    if (selectedFile.getEndTime() != null && selectedFile.getBeginTime() != null) {
-                        mTotalDuration = selectedFile.getEndTime() - selectedFile.getBeginTime();
-                    }
-                    
-                    // Enable playback button
-                    if (mBtnPlayVideo != null) {
-                        mBtnPlayVideo.setEnabled(true);
-                    }
-                    
-                    // Start playback
-                    startPlayback();
-                } catch (Exception e) {
-                    Log.e(TAG, "Error handling list item click: " + e.getMessage(), e);
-                    e.printStackTrace();
+        // Initialize Playback instance (only if VideoView was created successfully)
+        if (mVideoView != null) {
+            try {
+                mPlayback = new Playback(mActivity);
+                if (mPlayback != null) {
+                    mPlayback.setVideoView(mVideoView);
+                    mPlayback.setPlayerListener(new PlaybackListenerImpl());
                 }
+            } catch (Exception e) {
+                Log.e(TAG, "Error creating Playback instance: " + e.getMessage(), e);
             }
-        });
-        mMainLayout.addView(mLstRecord);
-        
-            // Initialize Playback instance (only if VideoView was created successfully)
-            if (mVideoView != null) {
-                try {
-                    mPlayback = new Playback(mActivity);
-                    if (mPlayback != null) {
-                        mPlayback.setVideoView(mVideoView);
-                        mPlayback.setPlayerListener(new PlaybackListenerImpl());
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error creating Playback instance: " + e.getMessage(), e);
-                }
-            }
-            
-            // Set up list adapter
-            if (mLstRecord != null) {
-                mAdapter = new ArrayAdapter<String>(mActivity, android.R.layout.simple_list_item_1, new ArrayList<String>());
-                mLstRecord.setAdapter(mAdapter);
-            }
+        }
             
             return mMainLayout;
         } catch (Exception e) {
@@ -581,40 +470,6 @@ public class PlaybackPlayer {
     public void stopSearch() {
         if (mSearchHelper != null) {
             mSearchHelper.stopSearch();
-        }
-    }
-    
-    /**
-     * Show searching status
-     */
-    private void showSearching() {
-        if (mTvStatus != null) {
-            mTvStatus.setText("Searching...");
-        }
-    }
-    
-    /**
-     * Cancel search
-     */
-    private void cancelSearch() {
-        if (mTvStatus != null) {
-            mTvStatus.setText("");
-        }
-    }
-    
-    /**
-     * Update UI with search results
-     */
-    private void updateSearchResults() {
-        if (mAdapter != null) {
-            mAdapter.clear();
-            for (RecordFile file : mFileList) {
-                String dateStr = file.getYear() + "-" + String.format("%02d", file.getMonth()) + "-" + String.format("%02d", file.getDay());
-                String timeStr = formatSeconds(file.getBeginTime()) + " - " + formatSeconds(file.getEndTime());
-                String itemText = "Chn: " + file.getChn() + " | Date: " + dateStr + " | Time: " + timeStr + " | Type: " + (file.getFileType() == 0 ? "Normal" : "Alarm");
-                mAdapter.add(itemText);
-            }
-            mAdapter.notifyDataSetChanged();
         }
     }
     
@@ -1407,40 +1262,50 @@ public class PlaybackPlayer {
         // Create fullscreen pause placeholder
         createFullscreenPausePlaceholder();
         
-        // Controls container (bottom bar) - matching VideoPlayer style exactly
+        // Controls container (left vertical column) - matching VideoPlayer style exactly
         mFullscreenControlsLayout = new LinearLayout(mActivity);
-        mFullscreenControlsLayout.setOrientation(LinearLayout.HORIZONTAL);
-        mFullscreenControlsLayout.setGravity(Gravity.CENTER_VERTICAL);
-        mFullscreenControlsLayout.setPadding(dp(0), dp(0), dp(0), dp(0));
-        mFullscreenControlsLayout.setBackgroundColor(Color.parseColor("#80000000"));
-        
+        mFullscreenControlsLayout.setOrientation(LinearLayout.VERTICAL);
+        mFullscreenControlsLayout.setGravity(Gravity.CENTER);
+        mFullscreenControlsLayout.setPadding(dp(0), dp(32), dp(0), dp(0));
+        mFullscreenControlsLayout.setBackgroundColor(Color.parseColor("#80000000")); // semi-opaque
+
         android.widget.FrameLayout.LayoutParams controlsParams = new android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            dp(32));
-        controlsParams.gravity = Gravity.BOTTOM;
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        controlsParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL; // START over LEFT
+        controlsParams.setMargins(dp(0), 0, 0, 0);
         mFullscreenControlsLayout.setLayoutParams(controlsParams);
-        
-        // Each child fills 1/4 width (matching VideoPlayer exactly)
-        LinearLayout.LayoutParams slot = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-        
+
+        // Reusable LayoutParams for buttons
+        android.widget.LinearLayout.LayoutParams btnLp = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+
         // --- Play / Pause ---
-        mFullscreenPlayPauseBtn = makeIconBtn(mIsPlaying ? R.drawable.ic_pause : R.drawable.ic_play);
-        mFullscreenPlayPauseBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
+        mFullscreenPlayPauseBtn = makeIconBtn(mIsPlaying ? R.drawable.ic_pause : R.drawable.ic_play, dp(48));
+        mFullscreenPlayPauseBtn.setLayoutParams(btnLp);
+        mFullscreenPlayPauseBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
+        mFullscreenPlayPauseBtn.setBackgroundColor(Color.parseColor("#00000000"));
+        mFullscreenPlayPauseBtn.setRotation(90f);
+
         mFullscreenPlayPauseBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 toggleFullscreenPlayPause();
             }
         });
-        
+
         // --- Speed button ---
         mFullscreenSpeedBtn = new Button(mActivity);
         mFullscreenSpeedBtn.setText(mCurrentSpeed + ".0x");
         mFullscreenSpeedBtn.setTextColor(Color.WHITE);
         mFullscreenSpeedBtn.setTextSize(12);
-        mFullscreenSpeedBtn.setPadding(dp(8), dp(8), dp(8), dp(8));
-        mFullscreenSpeedBtn.setBackgroundColor(Color.TRANSPARENT);
-        mFullscreenSpeedBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
+        mFullscreenSpeedBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
+        mFullscreenSpeedBtn.setBackgroundColor(Color.parseColor("#00000000"));
+        mFullscreenSpeedBtn.setRotation(90f);
+        mFullscreenSpeedBtn.setLayoutParams(btnLp);
         mFullscreenSpeedBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -1454,41 +1319,60 @@ public class PlaybackPlayer {
                 }
             }
         });
-        
+
         // --- Time display ---
         mFullscreenTimeText = new TextView(mActivity);
         mFullscreenTimeText.setText("00:00 / 00:00");
         mFullscreenTimeText.setTextColor(Color.WHITE);
         mFullscreenTimeText.setTextSize(12);
-        mFullscreenTimeText.setPadding(dp(8), 0, dp(8), 0);
+        mFullscreenTimeText.setPadding(dp(16), dp(16), dp(16), dp(16));
         mFullscreenTimeText.setGravity(Gravity.CENTER);
-        mFullscreenTimeText.setLayoutParams(new LinearLayout.LayoutParams(slot));
-        
+        mFullscreenTimeText.setRotation(90f);
+        mFullscreenTimeText.setLayoutParams(btnLp);
+
         // --- Close button (Fullscreen exit) ---
-        mFullscreenCloseBtn = makeIconBtn(R.drawable.ic_fullscreen_exit);
-        mFullscreenCloseBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
+        mFullscreenCloseBtn = makeIconBtn(R.drawable.ic_fullscreen_exit, dp(32));
+        mFullscreenCloseBtn.setLayoutParams(btnLp);
+
         mFullscreenCloseBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 exitFullscreen();
             }
         });
-        
-        // Add to bar and attach (matching VideoPlayer order)
+
+        // Assemble controls with vertical spacing (matching VideoPlayer)
         mFullscreenControlsLayout.addView(mFullscreenPlayPauseBtn);
+        android.view.View spacer1 = new android.view.View(mActivity);
+        mFullscreenControlsLayout.addView(spacer1, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
+
         mFullscreenControlsLayout.addView(mFullscreenSpeedBtn);
+        android.view.View spacer2 = new android.view.View(mActivity);
+        mFullscreenControlsLayout.addView(spacer2, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
+
         mFullscreenControlsLayout.addView(mFullscreenTimeText);
+        android.view.View spacer3 = new android.view.View(mActivity);
+        mFullscreenControlsLayout.addView(spacer3, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
+
         mFullscreenControlsLayout.addView(mFullscreenCloseBtn);
+        android.view.View spacer4 = new android.view.View(mActivity);
+        mFullscreenControlsLayout.addView(spacer4, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
         
         // Add to fullscreen layout
         mFullscreenLayout.addView(mFullscreenVideoView);
         mFullscreenLayout.addView(mFullscreenControlsLayout);
         
-        // Ensure controls are above video
+        // Make sure controls are actually above the video
         mFullscreenControlsLayout.bringToFront();
+        // Strong elevation to win z-order (API 21+)
         mFullscreenControlsLayout.setElevation(1000f);
-        
-        // Ensure controls are positioned correctly (matching VideoPlayer)
+        mFullscreenLayout.setElevation(999f);
+
+        // Optional: ensure controls receive touch
+        mFullscreenControlsLayout.setClickable(true);
+        mFullscreenControlsLayout.setFocusable(true);
+
+        // Keep your existing positioning logic if needed
         mFullscreenLayout.post(new Runnable() {
             @Override
             public void run() {
@@ -1506,22 +1390,18 @@ public class PlaybackPlayer {
      */
     private void ensureFullscreenControlsPosition() {
         if (mFullscreenLayout != null && mFullscreenControlsLayout != null) {
-            // Find the controls layout and ensure it's positioned at BOTTOM (for horizontal bar)
-            // This matches VideoPlayer's ensureControlsAtBottom but for horizontal layout
+            // Find the controls layout and ensure it's at LEFT side of video content
             android.widget.FrameLayout.LayoutParams controlsParams =
                 (android.widget.FrameLayout.LayoutParams) mFullscreenControlsLayout.getLayoutParams();
             if (controlsParams != null) {
-                // For horizontal bottom bar, keep it at BOTTOM
-                controlsParams.gravity = Gravity.BOTTOM;
-                controlsParams.width = android.widget.FrameLayout.LayoutParams.MATCH_PARENT;
-                controlsParams.height = dp(32);
-                controlsParams.setMargins(0, 0, 0, 0);
+                controlsParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+                controlsParams.setMargins(dp(20), 0, 0, 0); // Left side positioning
                 mFullscreenControlsLayout.setLayoutParams(controlsParams);
                 mFullscreenControlsLayout.bringToFront();
                 mFullscreenControlsLayout.requestLayout();
                 mFullscreenControlsLayout.invalidate();
                 
-                Log.d(TAG, "Fullscreen controls positioned at bottom");
+                Log.d(TAG, "Fullscreen controls positioned at left side of video content");
             }
         }
     }
@@ -1792,12 +1672,22 @@ public class PlaybackPlayer {
                 Log.d(TAG, "Video rotated to landscape, size: " + params.width + "x" + params.height);
             }
             
-            // Ensure controls stay positioned correctly after rotation (matching VideoPlayer)
+            // Ensure controls stay at LEFT side after rotation (matching VideoPlayer)
             if (mFullscreenLayout != null) {
                 mFullscreenLayout.post(new Runnable() {
                     @Override
                     public void run() {
-                        ensureFullscreenControlsPosition();
+                        // Find the controls layout and ensure it's at LEFT side of video content
+                        if (mFullscreenControlsLayout != null) {
+                            android.widget.FrameLayout.LayoutParams controlsParams =
+                                (android.widget.FrameLayout.LayoutParams) mFullscreenControlsLayout.getLayoutParams();
+                            if (controlsParams != null) {
+                                controlsParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+                                controlsParams.setMargins(dp(20), 0, 0, 0); // Left side positioning
+                                mFullscreenControlsLayout.setLayoutParams(controlsParams);
+                                mFullscreenControlsLayout.bringToFront();
+                            }
+                        }
                     }
                 });
             }
