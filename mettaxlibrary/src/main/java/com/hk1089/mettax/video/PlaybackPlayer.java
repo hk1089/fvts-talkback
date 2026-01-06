@@ -1775,4 +1775,8 @@ public class PlaybackPlayer {
         }
         mPlayback = null;
     }
+
+    public LinearLayout getMainLayout() {
+        return mMainLayout;
+    }
 }
