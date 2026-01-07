@@ -67,6 +67,10 @@ public class PlaybackPlayer {
     private VideoSearchHelper mSearchHelper;
     private List<RecordFile> mFileList = new ArrayList<>();
     
+    // Search time parameters (stored locally for matching)
+    private int mSearchBeginTime = 0;
+    private int mSearchEndTime = 86400;
+    
     // Listener
     private PlaybackPlayerListener mListener;
     
@@ -218,6 +222,8 @@ public class PlaybackPlayer {
      * @param endTime End time in seconds (0-86400)
      */
     public void setSearchTimeRange(int beginTime, int endTime) {
+        mSearchBeginTime = beginTime;
+        mSearchEndTime = endTime;
         if (mSearchHelper != null) {
             mSearchHelper.setSearchTimeRange(beginTime, endTime);
         }
@@ -243,6 +249,8 @@ public class PlaybackPlayer {
      * @param endTime End time in seconds (0-86400)
      */
     public void setSearchParameters(int year, int month, int day, int channel, int beginTime, int endTime) {
+        mSearchBeginTime = beginTime;
+        mSearchEndTime = endTime;
         if (mSearchHelper != null) {
             mSearchHelper.setSearchParameters(year, month, day, channel, beginTime, endTime);
         }
@@ -478,6 +486,7 @@ public class PlaybackPlayer {
      */
     private void playFirstResult() {
         if (mFileList == null || mFileList.size() == 0) {
+            Log.d(TAG, "No files found in search results");
             return;
         }
         
@@ -499,16 +508,27 @@ public class PlaybackPlayer {
         }
         
         try {
-            RecordFile firstFile = mFileList.get(0);
-            if (firstFile == null) {
+            // Find the video that matches the search time range
+            RecordFile matchingFile = findMatchingVideo(mFileList, mSearchBeginTime, mSearchEndTime);
+            
+            if (matchingFile == null) {
+                // If no exact match, fall back to first file
+                Log.d(TAG, "No video found matching time range [" + mSearchBeginTime + "-" + mSearchEndTime + "], playing first result");
+                matchingFile = mFileList.get(0);
+            } else {
+                Log.d(TAG, "Found matching video for time range [" + mSearchBeginTime + "-" + mSearchEndTime + "]");
+            }
+            
+            if (matchingFile == null) {
+                Log.e(TAG, "No valid file to play");
                 return;
             }
             
             // Store playback parameters
-            mPlaybackFile = firstFile.getOrginalFile();
-            mPlaybackLength = firstFile.getOrginalLen();
-            mPlaybackChannel = firstFile.getChn();
-            mCurrentPlayingFile = firstFile;
+            mPlaybackFile = matchingFile.getOrginalFile();
+            mPlaybackLength = matchingFile.getOrginalLen();
+            mPlaybackChannel = matchingFile.getChn();
+            mCurrentPlayingFile = matchingFile;
             
             // Check if file data is valid
             if (mPlaybackFile == null || mPlaybackLength <= 0) {
@@ -517,8 +537,9 @@ public class PlaybackPlayer {
             }
             
             // Calculate total duration from file's time range
-            if (firstFile.getEndTime() != null && firstFile.getBeginTime() != null) {
-                mTotalDuration = firstFile.getEndTime() - firstFile.getBeginTime();
+            if (matchingFile.getEndTime() != null && matchingFile.getBeginTime() != null) {
+                mTotalDuration = matchingFile.getEndTime() - matchingFile.getBeginTime();
+                Log.d(TAG, "Video time range: [" + matchingFile.getBeginTime() + "-" + matchingFile.getEndTime() + "], duration: " + mTotalDuration);
             }
             
             // Enable playback button
@@ -529,8 +550,56 @@ public class PlaybackPlayer {
             // Automatically start playback
             startPlayback();
         } catch (Exception e) {
-            Log.e(TAG, "Error playing first result: " + e.getMessage(), e);
+            Log.e(TAG, "Error playing result: " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Find a video that matches the given time range
+     * Returns the first video whose time range overlaps or contains the search time range
+     */
+    private RecordFile findMatchingVideo(List<RecordFile> fileList, int searchBeginTime, int searchEndTime) {
+        if (fileList == null || fileList.size() == 0) {
+            return null;
+        }
+        
+        Log.d(TAG, "Searching for video matching time range [" + searchBeginTime + "-" + searchEndTime + "]");
+        
+        // First, try to find a video that contains the entire search time range
+        for (RecordFile file : fileList) {
+            if (file == null || file.getBeginTime() == null || file.getEndTime() == null) {
+                continue;
+            }
+            
+            int fileBeginTime = file.getBeginTime();
+            int fileEndTime = file.getEndTime();
+            
+            // Check if the file's time range contains the search time range
+            if (fileBeginTime <= searchBeginTime && fileEndTime >= searchEndTime) {
+                Log.d(TAG, "Found video that contains search range: [" + fileBeginTime + "-" + fileEndTime + "]");
+                return file;
+            }
+        }
+        
+        // If no exact match, find a video that overlaps with the search time range
+        for (RecordFile file : fileList) {
+            if (file == null || file.getBeginTime() == null || file.getEndTime() == null) {
+                continue;
+            }
+            
+            int fileBeginTime = file.getBeginTime();
+            int fileEndTime = file.getEndTime();
+            
+            // Check if the file's time range overlaps with the search time range
+            // Overlap occurs when: fileBeginTime < searchEndTime && fileEndTime > searchBeginTime
+            if (fileBeginTime < searchEndTime && fileEndTime > searchBeginTime) {
+                Log.d(TAG, "Found video that overlaps with search range: [" + fileBeginTime + "-" + fileEndTime + "]");
+                return file;
+            }
+        }
+        
+        Log.d(TAG, "No video found matching time range [" + searchBeginTime + "-" + searchEndTime + "]");
+        return null;
     }
     
     /**
