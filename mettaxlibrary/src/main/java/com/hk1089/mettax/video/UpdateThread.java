@@ -69,7 +69,12 @@ public class UpdateThread {
 						Thread.sleep(100);
 					}
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					// Normal shutdown path: stopUpdateThread() interrupts sleep to exit quickly.
+					if (isExit) {
+						break;
+					}
+					Thread.currentThread().interrupt();
+					break;
 				} 
 			}
 			this.isExit = true;
