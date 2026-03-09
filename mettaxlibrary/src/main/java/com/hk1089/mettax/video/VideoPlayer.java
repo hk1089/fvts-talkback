@@ -36,6 +36,10 @@ import com.hk1089.mettax.utils.SquareRelativeLayout;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class VideoPlayer {
 
@@ -79,6 +83,11 @@ public class VideoPlayer {
     private boolean mControlsVisible = true;
     private android.os.Handler mControlsHandler = new android.os.Handler();
     private Runnable mHideControlsRunnable;
+    private final android.os.Handler mMainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final ExecutorService mStreamExecutor = Executors.newSingleThreadExecutor();
+    private final Object mLifecycleLock = new Object();
+    private final AtomicInteger mStreamGeneration = new AtomicInteger(0);
+    private volatile boolean mIsDestroyed = false;
     
     // Fullscreen loading and placeholder components
     private android.widget.ProgressBar mFullscreenLoadingIndicator;
@@ -382,25 +391,41 @@ public class VideoPlayer {
         playPauseBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
 
         playPauseBtn.setOnClickListener(v -> {
+            if (mIsDestroyed) return;
             RealPlay rp = mRealPlays.get(videoIndex);
             if (rp == null) return;
             if (rp.isViewing()) {
-                rp.StopAV();
                 playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
                 // Show pause placeholder, hide loading indicator
                 updateLoadingAndPlaceholder(videoIndex, false, true);
+                runOnStreamThread(() -> {
+                    rp.StopAV();
+                    postToMainThread(() -> {
+                        if (mIsDestroyed) return;
+                        updateGridPlayerButton(videoIndex);
+                        if (mIsFullscreen && mFullscreenChannel == videoIndex) updateFullscreenControls();
+                    });
+                });
             } else {
-                rp.StartAV(false, true);
                 playPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
                 // Show loading indicator while starting
                 updateLoadingAndPlaceholder(videoIndex, true, false);
-                
-                // Hide loading indicator after a short delay (simulate loading time)
-                mGridControlsHandler.postDelayed(() -> {
-                    if (rp.isViewing()) {
-                        updateLoadingAndPlaceholder(videoIndex, false, false);
-                    }
-                }, 1000);
+                final int generationAtSubmit = mStreamGeneration.get();
+                runOnStreamThread(() -> {
+                    if (generationAtSubmit != mStreamGeneration.get()) return;
+                    rp.StartAV(false, true);
+                    postToMainThread(() -> {
+                        if (mIsDestroyed) return;
+                        // Hide loading indicator after a short delay (simulate loading time)
+                        mGridControlsHandler.postDelayed(() -> {
+                            if (!mIsDestroyed && rp.isViewing()) {
+                                updateLoadingAndPlaceholder(videoIndex, false, false);
+                            }
+                        }, 1000);
+                        updateGridPlayerButton(videoIndex);
+                        if (mIsFullscreen && mFullscreenChannel == videoIndex) updateFullscreenControls();
+                    });
+                });
             }
             if (mIsFullscreen && mFullscreenChannel == videoIndex) updateFullscreenControls();
         });
@@ -503,6 +528,10 @@ public class VideoPlayer {
     }
 
     public void startVideo() {
+        if (mIsDestroyed) {
+            Log.w("VideoPlayer", "startVideo ignored: player is destroyed");
+            return;
+        }
         if (!mIsInitialized) {
             Log.e("VideoPlayer", "VideoPlayer not initialized");
             return;
@@ -520,10 +549,16 @@ public class VideoPlayer {
             updateLoadingAndPlaceholder(i, true, false);
         }
 
+        final int generationAtStart = mStreamGeneration.get();
         for (int i = 0; i < mChannelCount; i++) {
-            RealPlay realPlay = mRealPlays.get(i);
-            realPlay.setViewInfo(mDevIdno, mDevIdno, i, "CH" + (i+1), 0);
-            realPlay.StartAV(false, true);
+            final int channelIndex = i;
+            runOnStreamThread(() -> {
+                if (generationAtStart != mStreamGeneration.get()) return;
+                RealPlay realPlay = mRealPlays.get(channelIndex);
+                if (realPlay == null) return;
+                realPlay.setViewInfo(mDevIdno, mDevIdno, channelIndex, "CH" + (channelIndex + 1), 0);
+                realPlay.StartAV(false, true);
+            });
         }
 
         mIsPlaying = true;
@@ -534,6 +569,7 @@ public class VideoPlayer {
         
         // Hide loading indicators after a delay (simulate loading time)
         mGridControlsHandler.postDelayed(() -> {
+            if (mIsDestroyed) return;
             for (int i = 0; i < mChannelCount; i++) {
                 RealPlay realPlay = mRealPlays.get(i);
                 if (realPlay != null && realPlay.isViewing()) {
@@ -546,30 +582,62 @@ public class VideoPlayer {
     }
 
     public void stopVideo() {
+        if (mIsDestroyed) {
+            Log.d("VideoPlayer", "stopVideo ignored: player is destroyed");
+            return;
+        }
         if (!mIsPlaying) {
             Log.d("VideoPlayer", "Video not playing");
             return;
         }
 
         Log.d("VideoPlayer", "Stopping video");
-
-        for (RealPlay realPlay : mRealPlays) {
-            realPlay.StopAV();
-        }
-
+        final int generationAfterStop = mStreamGeneration.incrementAndGet();
         mIsPlaying = false;
-        Log.d("VideoPlayer", "Video stopped successfully");
-
-        // Update button states after stopping videos
-        updateButtonStates();
+        runOnStreamThread(() -> {
+            if (generationAfterStop != mStreamGeneration.get()) return;
+            for (RealPlay realPlay : mRealPlays) {
+                if (realPlay != null) {
+                    realPlay.StopAV();
+                }
+            }
+            postToMainThread(() -> {
+                if (mIsDestroyed) return;
+                Log.d("VideoPlayer", "Video stopped successfully");
+                // Update button states after stopping videos
+                updateButtonStates();
+            });
+        });
     }
 
     public void destroy() {
-        stopVideo();
-        if (mNetClient != null) {
-            mNetClient.UnInitialize();
+        synchronized (mLifecycleLock) {
+            if (mIsDestroyed) {
+                return;
+            }
+            mIsDestroyed = true;
         }
-        Log.d("VideoPlayer", "VideoPlayer destroyed");
+        mIsPlaying = false;
+        mStreamGeneration.incrementAndGet();
+        clearPendingUiCallbacks();
+
+        try {
+            mStreamExecutor.execute(() -> {
+                for (RealPlay realPlay : mRealPlays) {
+                    if (realPlay != null) {
+                        realPlay.StopAV();
+                    }
+                }
+                if (mNetClient != null) {
+                    mNetClient.UnInitialize();
+                }
+                Log.d("VideoPlayer", "VideoPlayer destroyed");
+            });
+        } catch (RejectedExecutionException e) {
+            Log.w("VideoPlayer", "Stream executor rejected destroy task: " + e.getMessage());
+        } finally {
+            mStreamExecutor.shutdown();
+        }
     }
 
     public LinearLayout getMainLayout() {
@@ -1143,28 +1211,79 @@ public class VideoPlayer {
 
     private void toggleFullscreenPlayPause() {
         if (mFullscreenRealPlay != null) {
+            if (mIsDestroyed) return;
+            final RealPlay fullscreenRealPlay = mFullscreenRealPlay;
+            final int fullscreenChannel = mFullscreenChannel;
             if (mFullscreenRealPlay.isViewing()) {
-                mFullscreenRealPlay.StopAV();
                 mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_play));
                 // Show pause placeholder, hide loading indicator
                 updateFullscreenLoadingAndPlaceholder(false, true);
+                runOnStreamThread(() -> {
+                    fullscreenRealPlay.StopAV();
+                    postToMainThread(() -> {
+                        if (mIsDestroyed) return;
+                        updateGridPlayerButton(fullscreenChannel);
+                        updateFullscreenControls();
+                    });
+                });
             } else {
-                mFullscreenRealPlay.StartAV(false, true);
                 mFullscreenPlayPauseBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause));
                 // Show loading indicator while starting
                 updateFullscreenLoadingAndPlaceholder(true, false);
-                
-                // Hide loading indicator after a short delay
-                mControlsHandler.postDelayed(() -> {
-                    if (mFullscreenRealPlay.isViewing()) {
-                        updateFullscreenLoadingAndPlaceholder(false, false);
-                    }
-                }, 1000);
+                final int generationAtSubmit = mStreamGeneration.get();
+                runOnStreamThread(() -> {
+                    if (generationAtSubmit != mStreamGeneration.get()) return;
+                    fullscreenRealPlay.StartAV(false, true);
+                    postToMainThread(() -> {
+                        if (mIsDestroyed) return;
+                        // Hide loading indicator after a short delay
+                        mControlsHandler.postDelayed(() -> {
+                            if (!mIsDestroyed && fullscreenRealPlay.isViewing()) {
+                                updateFullscreenLoadingAndPlaceholder(false, false);
+                            }
+                        }, 1000);
+                        updateGridPlayerButton(fullscreenChannel);
+                        updateFullscreenControls();
+                    });
+                });
             }
             
             // Also update the corresponding grid player button
             updateGridPlayerButton(mFullscreenChannel);
         }
+    }
+
+    private void runOnStreamThread(Runnable task) {
+        if (mIsDestroyed) return;
+        try {
+            mStreamExecutor.execute(() -> {
+                if (mIsDestroyed) return;
+                try {
+                    task.run();
+                } catch (Exception e) {
+                    Log.e("VideoPlayer", "Stream task failed: " + e.getMessage(), e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            Log.w("VideoPlayer", "Stream task rejected: " + e.getMessage());
+        }
+    }
+
+    private void postToMainThread(Runnable task) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            task.run();
+        } else {
+            mMainHandler.post(task);
+        }
+    }
+
+    private void clearPendingUiCallbacks() {
+        mGridControlsHandler.removeCallbacksAndMessages(null);
+        mControlsHandler.removeCallbacksAndMessages(null);
+        for (int i = 0; i < mGridHideControlsRunnable.length; i++) {
+            mGridHideControlsRunnable[i] = null;
+        }
+        mHideControlsRunnable = null;
     }
 
     private void toggleFullscreenMute() {
