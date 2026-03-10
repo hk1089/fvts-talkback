@@ -30,6 +30,7 @@ import java.text.SimpleDateFormat;
 import java.util.Locale;
 
 import com.babelstar.gviewer.NetClient;
+import com.hk1089.mettax.NetClientRuntime;
 import com.hk1089.mettax.R;
 import com.hk1089.mettax.utils.AspectRatioRelativeLayout;
 import com.hk1089.mettax.utils.SquareRelativeLayout;
@@ -509,19 +510,14 @@ public class VideoPlayer {
 
     private void initializeNetClient() {
         try {
-            String sdPath = mContext.getExternalFilesDir("").getAbsolutePath() + "/";
-            Log.d("VideoPlayer", "Initializing NetClient with path: " + sdPath);
-
-            mNetClient = new NetClient();
-            mNetClient.Initialize(sdPath);
-            mNetClient.SetJniEnv();
-            mNetClient.SetSession("");
-
-            // Set server configuration
-            mNetClient.SetDirSvr(mServer, mServer, 6605, 0);
-
-            mIsInitialized = true;
-            Log.d("VideoPlayer", "NetClient initialized successfully");
+            mIsInitialized = NetClientRuntime.ensureInitialized(mContext)
+                    && NetClientRuntime.ensureThreadEnv()
+                    && NetClientRuntime.updateServerIfNeeded(mServer, 6605);
+            if (mIsInitialized) {
+                Log.d("VideoPlayer", "NetClient runtime ready");
+            } else {
+                Log.e("VideoPlayer", "NetClient runtime failed");
+            }
         } catch (Exception e) {
             Log.e("VideoPlayer", "Error initializing NetClient: " + e.getMessage());
             mIsInitialized = false;
@@ -1259,9 +1255,7 @@ public class VideoPlayer {
             STREAM_EXECUTOR.execute(() -> {
                 if (mIsDestroyed) return;
                 try {
-                    if (mNetClient != null) {
-                        mNetClient.SetJniEnv();
-                    }
+                    NetClientRuntime.ensureThreadEnv();
                     task.run();
                 } catch (Exception e) {
                     Log.e("VideoPlayer", "Stream task failed: " + e.getMessage(), e);

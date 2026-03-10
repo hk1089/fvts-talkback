@@ -29,11 +29,8 @@ public class Channel {
     public boolean initialize(String ip, String id){
         mServer = ip;
         mDevIdno = id;
-        String sdPath = mContext.getFilesDir().getAbsolutePath() + "/";
-        mNetClient = new NetClient();
-        mNetClient.Initialize(sdPath);
-        mNetClient.SetJniEnv();
-        return updateServer();
+        boolean ready = NetClientRuntime.ensureInitialized(mContext) && NetClientRuntime.ensureThreadEnv();
+        return ready && updateServer();
     }
     public void checkPermission(FragmentActivity activity, PermissionListener listener){
         List<String> permissions = new ArrayList<>();
@@ -45,8 +42,7 @@ public class Channel {
     }
 
     protected boolean updateServer() {
-        mNetClient.SetDirSvr(mServer, mServer, 6605, 0);
-        return true;
+        return NetClientRuntime.updateServerIfNeeded(mServer, 6605);
     }
 
     public boolean startCall(){
