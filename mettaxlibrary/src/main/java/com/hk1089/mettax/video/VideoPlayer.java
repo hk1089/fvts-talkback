@@ -629,9 +629,10 @@ public class VideoPlayer {
                         realPlay.StopAV();
                     }
                 }
-                if (mNetClient != null) {
-                    mNetClient.UnInitialize();
-                }
+                // Do not uninitialize global NetClient here.
+                // In Flutter PlatformView churn (open/back repeatedly), native worker threads may still be
+                // unwinding when destroy() runs; global UnInitialize can race and crash in libttxclient.
+                // Keep process-level NetClient initialized during app lifetime.
                 Log.d("VideoPlayer", "VideoPlayer destroyed");
             });
         } catch (RejectedExecutionException e) {
