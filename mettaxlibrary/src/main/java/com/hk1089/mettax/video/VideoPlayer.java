@@ -84,7 +84,8 @@ public class VideoPlayer {
     private android.os.Handler mControlsHandler = new android.os.Handler();
     private Runnable mHideControlsRunnable;
     private final android.os.Handler mMainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-    private final ExecutorService mStreamExecutor = Executors.newSingleThreadExecutor();
+    // NetClient appears to use global native state. Keep all stream operations serialized process-wide.
+    private static final ExecutorService STREAM_EXECUTOR = Executors.newSingleThreadExecutor();
     private final Object mLifecycleLock = new Object();
     private final AtomicInteger mStreamGeneration = new AtomicInteger(0);
     private volatile boolean mIsDestroyed = false;
@@ -622,7 +623,7 @@ public class VideoPlayer {
         clearPendingUiCallbacks();
 
         try {
-            mStreamExecutor.execute(() -> {
+            STREAM_EXECUTOR.execute(() -> {
                 for (RealPlay realPlay : mRealPlays) {
                     if (realPlay != null) {
                         realPlay.StopAV();
@@ -635,8 +636,6 @@ public class VideoPlayer {
             });
         } catch (RejectedExecutionException e) {
             Log.w("VideoPlayer", "Stream executor rejected destroy task: " + e.getMessage());
-        } finally {
-            mStreamExecutor.shutdown();
         }
     }
 
@@ -1256,9 +1255,12 @@ public class VideoPlayer {
     private void runOnStreamThread(Runnable task) {
         if (mIsDestroyed) return;
         try {
-            mStreamExecutor.execute(() -> {
+            STREAM_EXECUTOR.execute(() -> {
                 if (mIsDestroyed) return;
                 try {
+                    if (mNetClient != null) {
+                        mNetClient.SetJniEnv();
+                    }
                     task.run();
                 } catch (Exception e) {
                     Log.e("VideoPlayer", "Stream task failed: " + e.getMessage(), e);
