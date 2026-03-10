@@ -58,7 +58,8 @@ public class Channel {
     }
     public boolean stopCall(){
         onTalkStop();
-        mNetClient.UnInitialize();
+        // NetClient is shared/global across video, playback and talkback flows.
+        // Do not uninitialize here; talkback stop should not tear down process-wide native state.
         return true;
     }
     protected void onTalkStart() {
