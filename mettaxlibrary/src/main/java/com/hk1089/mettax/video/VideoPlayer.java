@@ -1255,7 +1255,6 @@ public class VideoPlayer {
             STREAM_EXECUTOR.execute(() -> {
                 if (mIsDestroyed) return;
                 try {
-                    NetClientRuntime.ensureThreadEnv();
                     task.run();
                 } catch (Exception e) {
                     Log.e("VideoPlayer", "Stream task failed: " + e.getMessage(), e);

@@ -20,10 +20,16 @@ public class UpdateThread {
 	 */
 	protected void stopUpdateThread() {
 		if (mUpdateViewThread != null) {
-			Thread dummy = mUpdateViewThread;
+			UpdateViewThread dummy = mUpdateViewThread;
 			mUpdateViewThread.setExit(true);
 			mUpdateViewThread = null;
 			dummy.interrupt();
+			try {
+				// Ensure update loop fully exits before caller continues with native teardown/start.
+				dummy.join(500);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
 		}
 	}
 	
