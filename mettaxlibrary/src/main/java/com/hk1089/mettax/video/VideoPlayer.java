@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -87,6 +88,10 @@ public class VideoPlayer {
     private final android.os.Handler mMainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     // NetClient appears to use global native state. Keep all stream operations serialized process-wide.
     private static final ExecutorService STREAM_EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final Object NATIVE_RESTART_GUARD = new Object();
+    private static volatile long sLastNativeStopMs = 0L;
+    private static final long NATIVE_RESTART_COOLDOWN_MS = 1500L;
+    private static final long BULK_CHANNEL_STAGGER_MS = 250L;
     private final Object mLifecycleLock = new Object();
     private final AtomicInteger mStreamGeneration = new AtomicInteger(0);
     private volatile boolean mIsDestroyed = false;
@@ -402,6 +407,7 @@ public class VideoPlayer {
                 updateLoadingAndPlaceholder(videoIndex, false, true);
                 runOnStreamThread(() -> {
                     rp.StopAV();
+                    markNativeStop();
                     postToMainThread(() -> {
                         if (mIsDestroyed) return;
                         updateGridPlayerButton(videoIndex);
@@ -415,6 +421,7 @@ public class VideoPlayer {
                 final int generationAtSubmit = mStreamGeneration.get();
                 runOnStreamThread(() -> {
                     if (generationAtSubmit != mStreamGeneration.get()) return;
+                    waitForNativeRestartCooldown();
                     rp.StartAV(false, true);
                     postToMainThread(() -> {
                         if (mIsDestroyed) return;
@@ -553,8 +560,14 @@ public class VideoPlayer {
                 if (generationAtStart != mStreamGeneration.get()) return;
                 RealPlay realPlay = mRealPlays.get(channelIndex);
                 if (realPlay == null) return;
+                waitForNativeRestartCooldown();
+                if (channelIndex > 0) {
+                    // Conservative bulk-start staggering to reduce native connection burst pressure.
+                    sleepQuietly(BULK_CHANNEL_STAGGER_MS);
+                }
                 realPlay.setViewInfo(mDevIdno, mDevIdno, channelIndex, "CH" + (channelIndex + 1), 0);
                 realPlay.StartAV(false, true);
+                postToMainThread(() -> scheduleChannelStartUiSync(channelIndex, generationAtStart, 0));
             });
         }
 
@@ -598,6 +611,7 @@ public class VideoPlayer {
                     realPlay.StopAV();
                 }
             }
+            markNativeStop();
             postToMainThread(() -> {
                 if (mIsDestroyed) return;
                 Log.d("VideoPlayer", "Video stopped successfully");
@@ -625,6 +639,7 @@ public class VideoPlayer {
                         realPlay.StopAV();
                     }
                 }
+                markNativeStop();
                 // Do not uninitialize global NetClient here.
                 // In Flutter PlatformView churn (open/back repeatedly), native worker threads may still be
                 // unwinding when destroy() runs; global UnInitialize can race and crash in libttxclient.
@@ -1216,6 +1231,7 @@ public class VideoPlayer {
                 updateFullscreenLoadingAndPlaceholder(false, true);
                 runOnStreamThread(() -> {
                     fullscreenRealPlay.StopAV();
+                    markNativeStop();
                     postToMainThread(() -> {
                         if (mIsDestroyed) return;
                         updateGridPlayerButton(fullscreenChannel);
@@ -1229,6 +1245,7 @@ public class VideoPlayer {
                 final int generationAtSubmit = mStreamGeneration.get();
                 runOnStreamThread(() -> {
                     if (generationAtSubmit != mStreamGeneration.get()) return;
+                    waitForNativeRestartCooldown();
                     fullscreenRealPlay.StartAV(false, true);
                     postToMainThread(() -> {
                         if (mIsDestroyed) return;
@@ -1262,6 +1279,60 @@ public class VideoPlayer {
             });
         } catch (RejectedExecutionException e) {
             Log.w("VideoPlayer", "Stream task rejected: " + e.getMessage());
+        }
+    }
+
+    private static void markNativeStop() {
+        sLastNativeStopMs = SystemClock.uptimeMillis();
+    }
+
+    private static void waitForNativeRestartCooldown() {
+        synchronized (NATIVE_RESTART_GUARD) {
+            long elapsed = SystemClock.uptimeMillis() - sLastNativeStopMs;
+            long waitMs = NATIVE_RESTART_COOLDOWN_MS - elapsed;
+            if (waitMs <= 0) return;
+            sleepQuietly(waitMs);
+        }
+    }
+
+    private static void sleepQuietly(long waitMs) {
+        if (waitMs <= 0) return;
+        try {
+            Thread.sleep(waitMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void scheduleChannelStartUiSync(int channelIndex, int generationAtStart, int attempt) {
+        if (mIsDestroyed) return;
+        if (generationAtStart != mStreamGeneration.get()) return;
+        if (channelIndex < 0 || channelIndex >= mRealPlays.size()) return;
+
+        RealPlay realPlay = mRealPlays.get(channelIndex);
+        if (realPlay == null) return;
+
+        if (realPlay.isViewing()) {
+            updateLoadingAndPlaceholder(channelIndex, false, false);
+            updateGridPlayerButton(channelIndex);
+            if (mIsFullscreen && mFullscreenChannel == channelIndex) {
+                updateFullscreenControls();
+            }
+            return;
+        }
+
+        // Channel startup can be delayed due to conservative stagger and native reconnect pacing.
+        if (attempt < 8) {
+            mGridControlsHandler.postDelayed(
+                    () -> scheduleChannelStartUiSync(channelIndex, generationAtStart, attempt + 1),
+                    300
+            );
+        } else {
+            // Final reconciliation to avoid stale "paused" UI state.
+            updateGridPlayerButton(channelIndex);
+            if (mIsFullscreen && mFullscreenChannel == channelIndex) {
+                updateFullscreenControls();
+            }
         }
     }
 
