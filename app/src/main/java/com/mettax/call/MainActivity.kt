@@ -63,7 +63,7 @@ class MainActivity : AppCompatActivity() {
                 callStatus = false
                 callDurationHandler.removeCallbacks(callDurationRunnable)
             } else {
-                channel.initialize("dashcam.fvts.in", "670075294641")
+                channel.initialize("dashcam.fvts.in", "965083684181")
                 findViewById<Button>(R.id.startCall).text = "Connecting"
                 channel.startCall()
                 callStatus = true
