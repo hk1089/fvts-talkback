@@ -79,7 +79,12 @@ public class Talkback implements AudioPlay.AudioReader {
 			NetClient.TBSetTalkbackMsgCallBack(mTalkbackHandle);
 
 			if (mTalkbackHandle != 0) {
-				playSound();
+				mHandler.postDelayed(new Runnable() {
+					@Override
+					public void run() {
+						playSound();
+					}
+				}, 1000);
 				if (startRecord()) {
 					ret = true;
 				} else {

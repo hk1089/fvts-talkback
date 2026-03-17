@@ -65,7 +65,7 @@ public class Channel {
             }
 
             mTalkback = new Talkback();
-            mTalkback.startTalkback(mDevIdno, 1);
+            mTalkback.startTalkback(mDevIdno, 0);
             mTalkback.setTalkConnectionListener(new TalkConnectionListener() {
                 @Override
                 public void onCallConnected() {
