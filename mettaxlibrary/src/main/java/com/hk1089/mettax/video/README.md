@@ -92,6 +92,18 @@ override fun onDestroy() {
 #### Constructor
 ```kotlin
 VideoPlayer(Activity activity, String server, String deviceId, int channelCount)
+
+// Optional audio UI at call site (defaults: initialMuted=true, showMuteButton=true)
+VideoPlayer(Activity activity, String server, String deviceId, int channelCount,
+            boolean initialMuted, boolean showMuteButton)
+```
+
+```kotlin
+PlaybackPlayer(Activity activity, String devIdno, boolean isDirect, String server, int port)
+
+// Optional audio UI at call site (defaults: initialMuted=true, showMuteButton=false)
+PlaybackPlayer(Activity activity, String devIdno, boolean isDirect, String server, int port,
+               boolean initialMuted, boolean showMuteButton)
 ```
 
 #### Methods

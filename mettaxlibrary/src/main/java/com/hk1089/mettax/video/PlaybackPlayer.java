@@ -47,7 +47,11 @@ public class PlaybackPlayer {
     private VideoView mVideoView;
     private TextView mTvPlaybackTime;
     private AppCompatImageButton mBtnPlayVideo;
+    private AppCompatImageButton mBtnMute;
     private Button mBtnSpeed1x;
+    private boolean mIsMuted = true;
+    private final boolean mInitialMuted;
+    private final boolean mShowMuteButton;
     
     // Playback components
     private Playback mPlayback;
@@ -88,6 +92,7 @@ public class PlaybackPlayer {
     private Playback mFullscreenPlayback;
     private AppCompatImageButton mFullscreenPlayPauseBtn;
     private AppCompatImageButton mFullscreenCloseBtn;
+    private AppCompatImageButton mFullscreenMuteBtn;
     private Button mFullscreenSpeedBtn;
     private TextView mFullscreenTimeText;
     private android.widget.LinearLayout mFullscreenControlsLayout;
@@ -118,12 +123,24 @@ public class PlaybackPlayer {
      * @param port Server port
      */
     public PlaybackPlayer(Activity activity, String devIdno, boolean isDirect, String server, int port) {
+        this(activity, devIdno, isDirect, server, port, true, false);
+    }
+
+    /**
+     * @param initialMuted When true, playback starts without audio; when false, audio is enabled on start.
+     * @param showMuteButton When true, shows mute/unmute control in normal and fullscreen UI.
+     */
+    public PlaybackPlayer(Activity activity, String devIdno, boolean isDirect, String server, int port,
+                          boolean initialMuted, boolean showMuteButton) {
         mActivity = activity;
         mContext = activity.getApplicationContext();
         mDevIdno = devIdno;
         mIsDirect = isDirect;
         mServer = server;
         mPort = port;
+        mInitialMuted = initialMuted;
+        mShowMuteButton = showMuteButton;
+        mIsMuted = initialMuted;
         
         // Create VideoSearchHelper (it initializes NetClient automatically)
         mSearchHelper = new VideoSearchHelper(mContext, mDevIdno, mIsDirect, mServer, mPort);
@@ -370,7 +387,23 @@ public class PlaybackPlayer {
                 }
             });
             
-            // --- Speed selector (replacing Mute button) ---
+            if (mShowMuteButton) {
+                mBtnMute = makeIconBtn(mIsMuted ? R.drawable.ic_mute : R.drawable.ic_unmute);
+                mBtnMute.setLayoutParams(new LinearLayout.LayoutParams(slot));
+                mBtnMute.setEnabled(false);
+                mBtnMute.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (!mControlsVisible) {
+                            showControls();
+                        } else {
+                            startAutoHideTimer();
+                        }
+                        toggleMute();
+                    }
+                });
+            }
+
             mBtnSpeed1x = new Button(mActivity);
             mBtnSpeed1x.setText(mCurrentSpeed + ".0x");
             mBtnSpeed1x.setTextColor(Color.WHITE);
@@ -416,8 +449,10 @@ public class PlaybackPlayer {
                 }
             });
             
-            // Add to bar and attach (matching VideoPlayer order)
             mBottomControlLayout.addView(mBtnPlayVideo);
+            if (mBtnMute != null) {
+                mBottomControlLayout.addView(mBtnMute);
+            }
             mBottomControlLayout.addView(mBtnSpeed1x);
             mBottomControlLayout.addView(mTvPlaybackTime);
             mBottomControlLayout.addView(fullscreenBtn);
@@ -596,7 +631,11 @@ public class PlaybackPlayer {
                     mBtnSpeed1x.setEnabled(true);
                     mBtnSpeed1x.setText(mCurrentSpeed + ".0x");
                 }
-                
+                if (mBtnMute != null) {
+                    mBtnMute.setEnabled(true);
+                }
+                applyInitialPlaybackAudio();
+
                 if (mListener != null && mCurrentPlayingFile != null) {
                     mListener.onPlaybackStarted(mCurrentPlayingFile);
                 }
@@ -613,6 +652,7 @@ public class PlaybackPlayer {
     public void stopPlayback() {
         if (mIsPlaying && mPlayback != null) {
             try {
+                mPlayback.stopSound();
                 mPlayback.StopVod();
             } catch (Exception e) {
                 Log.e(TAG, "Error stopping playback: " + e.getMessage(), e);
@@ -649,6 +689,48 @@ public class PlaybackPlayer {
         }
     }
     
+    private void toggleMute() {
+        if (mPlayback == null || !mIsPlaying) {
+            return;
+        }
+        if (mIsMuted) {
+            mIsMuted = false;
+            mPlayback.playSound();
+        } else {
+            mIsMuted = true;
+            mPlayback.stopSound();
+        }
+        updateMuteButtonIcon();
+        if (mIsFullscreen) {
+            updateFullscreenControls();
+        }
+    }
+
+    private void applyInitialPlaybackAudio() {
+        if (mPlayback == null) {
+            return;
+        }
+        if (mInitialMuted) {
+            mIsMuted = true;
+            mPlayback.stopSound();
+        } else {
+            mIsMuted = false;
+            mPlayback.playSound();
+        }
+        updateMuteButtonIcon();
+    }
+
+    private void updateMuteButtonIcon() {
+        if (mBtnMute != null) {
+            mBtnMute.setImageDrawable(AppCompatResources.getDrawable(mActivity,
+                    mIsMuted ? R.drawable.ic_mute : R.drawable.ic_unmute));
+        }
+        if (mFullscreenMuteBtn != null) {
+            mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity,
+                    mIsMuted ? R.drawable.ic_mute : R.drawable.ic_unmute));
+        }
+    }
+
     /**
      * Toggle pause/resume playback
      */
@@ -1297,7 +1379,22 @@ public class PlaybackPlayer {
             }
         });
 
-        // --- Speed button ---
+        if (mShowMuteButton) {
+            mFullscreenMuteBtn = makeIconBtn(mIsMuted ? R.drawable.ic_mute : R.drawable.ic_unmute, dp(48));
+            mFullscreenMuteBtn.setLayoutParams(btnLp);
+            mFullscreenMuteBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
+            mFullscreenMuteBtn.setBackgroundColor(Color.parseColor("#00000000"));
+            mFullscreenMuteBtn.setRotation(90f);
+            mFullscreenMuteBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleMute();
+                }
+            });
+        } else {
+            mFullscreenMuteBtn = null;
+        }
+
         mFullscreenSpeedBtn = new Button(mActivity);
         mFullscreenSpeedBtn.setText(mCurrentSpeed + ".0x");
         mFullscreenSpeedBtn.setTextColor(Color.WHITE);
@@ -1345,6 +1442,12 @@ public class PlaybackPlayer {
         mFullscreenControlsLayout.addView(mFullscreenPlayPauseBtn);
         android.view.View spacer1 = new android.view.View(mActivity);
         mFullscreenControlsLayout.addView(spacer1, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
+
+        if (mFullscreenMuteBtn != null) {
+            mFullscreenControlsLayout.addView(mFullscreenMuteBtn);
+            android.view.View spacerMute = new android.view.View(mActivity);
+            mFullscreenControlsLayout.addView(spacerMute, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
+        }
 
         mFullscreenControlsLayout.addView(mFullscreenSpeedBtn);
         android.view.View spacer2 = new android.view.View(mActivity);
@@ -1482,6 +1585,7 @@ public class PlaybackPlayer {
         if (mFullscreenSpeedBtn != null) {
             mFullscreenSpeedBtn.setText(mCurrentSpeed + ".0x");
         }
+        updateMuteButtonIcon();
         if (mFullscreenTimeText != null && mTvPlaybackTime != null) {
             mFullscreenTimeText.setText(mTvPlaybackTime.getText());
         }

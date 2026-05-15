@@ -105,18 +105,18 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, PlaybackPlayerExampleActivity::class.java)
             // Pass search parameters to PlaybackPlayerExampleActivity
             // It will use VideoSearchHelper to search and display results
-            intent.putExtra("DevIDNO", "299076935181")
+            intent.putExtra("DevIDNO", "965080512310")
             intent.putExtra("Server", "dashcam.fvts.in")
             intent.putExtra("Port", 6605)  // Matching MainActivity port
             intent.putExtra("direct", false)  // Use "direct" not "IsDirect" to match RecordSearchActivity
             
             // Pass search date/time parameters
             intent.putExtra("Year", 2026)
-            intent.putExtra("Month", 1)
-            intent.putExtra("Day", 4)
+            intent.putExtra("Month", 5)
+            intent.putExtra("Day", 8)
             intent.putExtra("Channel", 0)  // 0 = all channels
-            intent.putExtra("BeginTime", 57724)  // Start time in seconds
-            intent.putExtra("EndTime", 58324)  // End time in seconds
+            intent.putExtra("BeginTime", 62496)  // Start time in seconds
+            intent.putExtra("EndTime", 62796)  // End time in seconds
             
             startActivity(intent)
         }

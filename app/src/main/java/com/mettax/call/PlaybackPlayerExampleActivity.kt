@@ -67,7 +67,7 @@ class PlaybackPlayerExampleActivity : AppCompatActivity() {
         Log.d(TAG, "Search Channel: $mChannel")
         
         // Create PlaybackPlayer (it uses VideoSearchHelper internally)
-        mPlaybackPlayer = PlaybackPlayer(this, mDevIdno, mIsDirect, mServer, mPort)
+        mPlaybackPlayer = PlaybackPlayer(this, mDevIdno, mIsDirect, mServer, mPort, true, false)
         
         // Set search parameters if provided
         if (mYear > 0 && mMonth > 0 && mDay > 0) {

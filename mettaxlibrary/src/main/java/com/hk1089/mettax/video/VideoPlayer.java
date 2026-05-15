@@ -59,6 +59,9 @@ public class VideoPlayer {
     private List<RealPlay> mRealPlays;
     private LinearLayout mMainLayout;
     private boolean[] mIsMuted; // Track mute state for each channel
+    private final boolean mInitialMuted;
+    private final boolean mShowMuteButton;
+    private final boolean[] mInitialAudioApplied;
     
     // Grid controls animation
     private boolean[] mGridControlsVisible; // Track visibility for each channel's controls
@@ -104,33 +107,43 @@ public class VideoPlayer {
     private VideoPlayerListener mVideoPlayerListener;
 
     public VideoPlayer(Activity activity, String server, String deviceId, int channelCount) {
+        this(activity, server, deviceId, channelCount, true, true);
+    }
+
+    /**
+     * @param initialMuted When true, all channels start muted; when false, channel 0 starts unmuted.
+     * @param showMuteButton When false, mute/unmute controls are hidden in grid and fullscreen.
+     */
+    public VideoPlayer(Activity activity, String server, String deviceId, int channelCount,
+                       boolean initialMuted, boolean showMuteButton) {
         mActivity = activity;
         mContext = activity.getApplicationContext();
         mServer = server;
         mDevIdno = deviceId;
         mChannelCount = channelCount;
+        mInitialMuted = initialMuted;
+        mShowMuteButton = showMuteButton;
 
         mVideoViews = new ArrayList<>();
         mRealPlays = new ArrayList<>();
-        mIsMuted = new boolean[channelCount]; // Initialize mute state array
-        
-        // Initialize grid controls visibility and auto-hide runnables
+        mIsMuted = new boolean[channelCount];
+        mInitialAudioApplied = new boolean[channelCount];
+
         mGridControlsVisible = new boolean[channelCount];
         mGridHideControlsRunnable = new Runnable[channelCount];
         mGridControlButtons = new List[channelCount];
-        
-        // Initialize loading and placeholder components
+
         mLoadingIndicators = new android.widget.ProgressBar[channelCount];
         mPausePlaceholders = new android.widget.ImageView[channelCount];
         mIsLoading = new boolean[channelCount];
 
-        // Initialize all channels as muted and controls visible
         for (int i = 0; i < channelCount; i++) {
-            mIsMuted[i] = true; // All channels start muted
-            mGridControlsVisible[i] = true; // Start with controls visible
+            mIsMuted[i] = initialMuted || i != 0;
+            mInitialAudioApplied[i] = false;
+            mGridControlsVisible[i] = true;
             mGridHideControlsRunnable[i] = null;
             mGridControlButtons[i] = new ArrayList<>();
-            mIsLoading[i] = true; // All channels start in loading state
+            mIsLoading[i] = true;
         }
 
         initializeComponents();
@@ -385,7 +398,6 @@ public class VideoPlayer {
         barParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
         bottomBar.setLayoutParams(barParams);
 
-        // Each child fills 1/4 width
         LinearLayout.LayoutParams slot = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
 
         // --- Play / Pause ---
@@ -439,29 +451,15 @@ public class VideoPlayer {
             if (mIsFullscreen && mFullscreenChannel == videoIndex) updateFullscreenControls();
         });
 
-        // --- Mute / Unmute ---
-        final AppCompatImageButton muteBtn = makeIconBtn(mIsMuted[videoIndex] ? R.drawable.ic_mute : R.drawable.ic_unmute);
-        muteBtn.setId(3000 + videoIndex); // Set ID for mute button
-        muteBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
-
-        muteBtn.setOnClickListener(v -> {
-            RealPlay rp = mRealPlays.get(videoIndex);
-            if (rp == null) return;
-
-            if (mIsMuted[videoIndex]) {
-                muteAllOtherChannels(videoIndex);
-                mIsMuted[videoIndex] = false;
-                rp.playSound();
-                muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
-                if (mVideoPlayerListener != null) mVideoPlayerListener.onVideoAudioStart(mVideoViews.get(videoIndex), videoIndex);
-            } else {
-                mIsMuted[videoIndex] = true;
-                rp.stopSound();
-                muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
-                if (mVideoPlayerListener != null) mVideoPlayerListener.onVideoAudioStop(mVideoViews.get(videoIndex), videoIndex);
-            }
-            if (mIsFullscreen && mFullscreenChannel == videoIndex) updateFullscreenControls();
-        });
+        final AppCompatImageButton muteBtn;
+        if (mShowMuteButton) {
+            muteBtn = makeIconBtn(mIsMuted[videoIndex] ? R.drawable.ic_mute : R.drawable.ic_unmute);
+            muteBtn.setId(3000 + videoIndex);
+            muteBtn.setLayoutParams(new LinearLayout.LayoutParams(slot));
+            muteBtn.setOnClickListener(v -> toggleChannelMute(videoIndex, muteBtn));
+        } else {
+            muteBtn = null;
+        }
 
         // --- Snapshot ---
         final AppCompatImageButton snapshotBtn = makeIconBtn(R.drawable.ic_snap);
@@ -499,13 +497,16 @@ public class VideoPlayer {
 
         // If you store for animations, accept View not Button
         mGridControlButtons[videoIndex].add(playPauseBtn);
-        mGridControlButtons[videoIndex].add(muteBtn);
+        if (muteBtn != null) {
+            mGridControlButtons[videoIndex].add(muteBtn);
+        }
         mGridControlButtons[videoIndex].add(snapshotBtn);
         mGridControlButtons[videoIndex].add(fullscreenBtn);
 
-        // Add to bar and attach
         bottomBar.addView(playPauseBtn);
-        bottomBar.addView(muteBtn);
+        if (muteBtn != null) {
+            bottomBar.addView(muteBtn);
+        }
         bottomBar.addView(snapshotBtn);
         bottomBar.addView(fullscreenBtn);
         container.addView(bottomBar);
@@ -788,6 +789,54 @@ public class VideoPlayer {
 
 
 
+    private void toggleChannelMute(int videoIndex, AppCompatImageButton muteBtn) {
+        RealPlay rp = mRealPlays.get(videoIndex);
+        if (rp == null) return;
+
+        if (mIsMuted[videoIndex]) {
+            muteAllOtherChannels(videoIndex);
+            mIsMuted[videoIndex] = false;
+            rp.playSound();
+            muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
+            if (mVideoPlayerListener != null) {
+                mVideoPlayerListener.onVideoAudioStart(mVideoViews.get(videoIndex), videoIndex);
+            }
+        } else {
+            mIsMuted[videoIndex] = true;
+            rp.stopSound();
+            muteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
+            if (mVideoPlayerListener != null) {
+                mVideoPlayerListener.onVideoAudioStop(mVideoViews.get(videoIndex), videoIndex);
+            }
+        }
+        if (mIsFullscreen && mFullscreenChannel == videoIndex) {
+            updateFullscreenControls();
+        }
+    }
+
+    private void applyInitialAudioForChannel(int channelIndex) {
+        if (channelIndex < 0 || channelIndex >= mChannelCount) {
+            return;
+        }
+        if (mInitialAudioApplied[channelIndex] || mIsMuted[channelIndex]) {
+            return;
+        }
+        RealPlay realPlay = mRealPlays.get(channelIndex);
+        if (realPlay == null || !realPlay.isViewing()) {
+            return;
+        }
+        mInitialAudioApplied[channelIndex] = true;
+        muteAllOtherChannels(channelIndex);
+        realPlay.playSound();
+        updateGridPlayerMuteButton(channelIndex);
+        if (mIsFullscreen && mFullscreenChannel == channelIndex) {
+            updateFullscreenControls();
+        }
+        if (mVideoPlayerListener != null) {
+            mVideoPlayerListener.onVideoAudioStart(mVideoViews.get(channelIndex), channelIndex);
+        }
+    }
+
     // Helper method to mute all channels except the specified one
     private void muteAllOtherChannels(int excludeChannel) {
         for (int i = 0; i < mRealPlays.size(); i++) {
@@ -1063,13 +1112,16 @@ public class VideoPlayer {
         if (mFullscreenChannel >= 0 && mFullscreenChannel < mIsMuted.length) {
             isMuted = mIsMuted[mFullscreenChannel];
         }
-        mFullscreenMuteBtn = makeIconBtn(isMuted ? R.drawable.ic_mute : R.drawable.ic_unmute, dp(48));
-        mFullscreenMuteBtn.setLayoutParams(btnLp);
-        mFullscreenMuteBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
-        mFullscreenMuteBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000"));
-        mFullscreenMuteBtn.setRotation(90f);
-
-        mFullscreenMuteBtn.setOnClickListener(v -> toggleFullscreenMute());
+        if (mShowMuteButton) {
+            mFullscreenMuteBtn = makeIconBtn(isMuted ? R.drawable.ic_mute : R.drawable.ic_unmute, dp(48));
+            mFullscreenMuteBtn.setLayoutParams(btnLp);
+            mFullscreenMuteBtn.setPadding(dp(16), dp(16), dp(16), dp(16));
+            mFullscreenMuteBtn.setBackgroundColor(android.graphics.Color.parseColor("#00000000"));
+            mFullscreenMuteBtn.setRotation(90f);
+            mFullscreenMuteBtn.setOnClickListener(v -> toggleFullscreenMute());
+        } else {
+            mFullscreenMuteBtn = null;
+        }
 
         // Snapshot button - using makeIconBtn with custom size for fullscreen
         mFullscreenSnapshotBtn = makeIconBtn(R.drawable.ic_snap, dp(48));
@@ -1121,9 +1173,11 @@ public class VideoPlayer {
         android.view.View spacer2 = new android.view.View(mActivity);
         mFullscreenControlsLayout.addView(spacer2, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
 
-        mFullscreenControlsLayout.addView(mFullscreenMuteBtn);
-        android.view.View spacer3 = new android.view.View(mActivity);
-        mFullscreenControlsLayout.addView(spacer3, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
+        if (mFullscreenMuteBtn != null) {
+            mFullscreenControlsLayout.addView(mFullscreenMuteBtn);
+            android.view.View spacer3 = new android.view.View(mActivity);
+            mFullscreenControlsLayout.addView(spacer3, new android.widget.LinearLayout.LayoutParams(1, dp(24)));
+        }
 
         mFullscreenControlsLayout.addView(mFullscreenSnapshotBtn);
         android.view.View spacer1 = new android.view.View(mActivity);
@@ -1315,6 +1369,7 @@ public class VideoPlayer {
         if (realPlay.isViewing()) {
             updateLoadingAndPlaceholder(channelIndex, false, false);
             updateGridPlayerButton(channelIndex);
+            applyInitialAudioForChannel(channelIndex);
             if (mIsFullscreen && mFullscreenChannel == channelIndex) {
                 updateFullscreenControls();
             }
@@ -1354,6 +1409,9 @@ public class VideoPlayer {
     }
 
     private void toggleFullscreenMute() {
+        if (!mShowMuteButton || mFullscreenMuteBtn == null) {
+            return;
+        }
         if (mFullscreenRealPlay != null && mFullscreenChannel >= 0 && mFullscreenChannel < mIsMuted.length) {
             boolean currentlyMuted = mIsMuted[mFullscreenChannel];
 
@@ -1392,13 +1450,10 @@ public class VideoPlayer {
                 updateFullscreenLoadingAndPlaceholder(false, true);
             }
 
-            // Update mute button based on current mute state (not audio state)
-            if (mFullscreenChannel >= 0 && mFullscreenChannel < mIsMuted.length) {
+            if (mFullscreenMuteBtn != null && mFullscreenChannel >= 0 && mFullscreenChannel < mIsMuted.length) {
                 if (mIsMuted[mFullscreenChannel]) {
-                    // Channel is muted, show mute icon
                     mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute));
                 } else {
-                    // Channel is not muted, show unmute icon
                     mFullscreenMuteBtn.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute));
                 }
             }

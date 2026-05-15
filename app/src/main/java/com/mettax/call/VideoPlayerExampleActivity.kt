@@ -21,8 +21,9 @@ class VideoPlayerExampleActivity : AppCompatActivity() {
         mVideoPlayer = VideoPlayer(
             this,
             "dashcam.fvts.in",
-            "965083684181",
-            4  // Create 2 video channels
+            "965080512310",
+            4,
+            true, false// Create 2 video channels
         )
         
         // Set up the UI
